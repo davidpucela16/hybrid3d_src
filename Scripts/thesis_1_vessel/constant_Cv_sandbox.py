@@ -64,15 +64,17 @@ params = {'legend.fontsize': 'x-large',
           'lines.markersize': 15}
 pylab.rcParams.update(params)
 
+var=True #True if you dont wanna recompute the matrices
 
+#%%
 BC_type = np.array(["Neumann", "Neumann", "Neumann",
                    "Neumann", "Neumann", "Neumann"])
 BC_type = np.array(["Dirichlet", "Dirichlet", "Neumann",
                    "Neumann", "Dirichlet", "Dirichlet"])
-BC_value = np.array([0, 0, 0, 0, 0, 0])
+BC_value = np.array([0,0,0,0,0,0])
 L_vessel = 240
-cells_3D = 5
-n = 11
+cells_3D = 21
+n = 21
 L_3D = np.array([L_vessel, 3*L_vessel, L_vessel])
 
 D = 1
@@ -91,7 +93,7 @@ BCs_1D = np.array([[0, 1],
 
 vertex_to_edge = [[0], [0, 1], [1, 2], [2]]
 
-temp_cpv = 30
+temp_cpv = 100
 alpha = 50 # Aspect ratio
 R_vessel = L_vessel/alpha
 R_1D = np.zeros(3)+R_vessel
@@ -114,7 +116,11 @@ x=net.pos_s[:,1]
     
 Cv=np.ones(3*temp_cpv)
 #Cv=np.concatenate((np.ones(cells_per_vessel), np.arange(cells_per_vessel)[::-1]/cells_per_vessel, np.zeros(cells_per_vessel)))
-    
+
+if var:
+    prob.B_assembly_bool=True
+    prob.phi_bar_bool=True
+
 prob.AssemblyDEFFast(path_phi_bar, path_matrices)
 prob.AssemblyABC(path_matrices)
 Lin_matrix_1D=sp.sparse.vstack((sp.sparse.hstack((prob.A_matrix, prob.B_matrix)), 
@@ -152,7 +158,7 @@ sol_dip = dir_solve(Lin_matrix_2D, b)
 q_dip = sol_dip[mesh.size_mesh:]
 
 
-
+#%%
 file_path = os.path.join(path_output + '/COMSOL_data/alpha_{}_q.txt'.format(alpha))
 q_COMSOL, x_COMSOL = Get1DCOMSOL(file_path)
 pos_com=np.where((x_COMSOL<2*L_vessel) & (x_COMSOL>L_vessel))
@@ -191,6 +197,46 @@ plt.title("Cells={}, alpha={}".format(temp_cpv, alpha))
 plt.legend()
 plt.xlim((L_vessel, 2*L_vessel))
 plt.ylim((0.2,1.1))
+plt.show()
+#%%
+from post_processing import ReconstructionCoordinatesFast, GetProbArgs
+file_path = os.path.join(path_output + '/COMSOL_data/traverse_phi.txt'.format(alpha))
+t_phi, x_C = Get1DCOMSOL(file_path)
+res=200
+x_cyl=np.linspace(0,L_vessel, res)*0.99+0.005*L_vessel
+crds=np.vstack((L_vessel/2+ np.zeros(res), 3*L_vessel/2*np.ones(res),  x_cyl)).T
+phi_line=ReconstructionCoordinatesFast(crds, GetProbArgs(prob), s_line, q_line)
+phi_cyl=ReconstructionCoordinatesFast(crds, GetProbArgs(prob), s_cyl, q_cyl)
+
+plt.plot(x_cyl, phi_cyl, '--')
+plt.plot(x_cyl, phi_line, '.-')
+plt.plot(x_C, t_phi)
+plt.ylabel("$\overline{\phi}$", rotation=0)
+plt.xlabel("y")
+plt.title("Cells={}, alpha={}".format(temp_cpv, alpha))
+plt.show()
+
+crds=np.vstack((x_cyl, 3*L_vessel/2*np.ones(res),  L_vessel/2+ np.zeros(res))).T
+phi_line=ReconstructionCoordinatesFast(crds, GetProbArgs(prob), s_line, q_line)
+phi_cyl=ReconstructionCoordinatesFast(crds, GetProbArgs(prob), s_cyl, q_cyl)
+
+plt.plot(x_cyl, phi_cyl, '--')
+plt.plot(x_cyl, phi_line, '.-')
+plt.plot(x_C, t_phi)
+plt.ylabel("$\overline{\phi}$", rotation=0)
+plt.xlabel("y")
+plt.title("Cells={}, alpha={}".format(temp_cpv, alpha))
+plt.show()
+#%%
+from PrePostTemp import GetCoarsePhi
+phi_coarse=GetCoarsePhi( prob.q, np.ones(prob.S), prob.s, GetProbArgs(prob))
+
+slic=mesh.GetYSlice(L_vessel/2).reshape(cells_3D, cells_3D)
+phi_coarse_middle=phi_coarse[0][slic[int(cells_3D/2)]]
+
+plt.plot(mesh.x, phi_coarse_middle)
+
+
 
 
 #%%
@@ -207,13 +253,6 @@ aa.PlotData(path_output)
 
 
 
-#%%
-
-
-
-
-from post_processing import ReconstructionCoordinatesFast, GetProbArgs
-
 phi_cyl=[phi_bar_cyl]
 phi_line=[phi_bar_line]
 phi_COMSOL=[phi_COMSOL]
@@ -226,10 +265,6 @@ for i in range(3):
     kk, x_C = Get1DCOMSOL(file_path)
     phi_COMSOL.append(kk)
     x_COMSOL.append(x_C)
-
-#%%
-
-
 
 
 

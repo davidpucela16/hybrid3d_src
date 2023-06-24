@@ -80,7 +80,7 @@ mesh.AssemblyBoundaryVectors()
 # - This is the validation of the 1D transport eq without reaction
 
 D = 1
-K=np.array([0.0001,2,0.0001])*4
+K=np.array([0.0001,1,0.0001])*8
 
 U = np.array([2,2,2])/L_vessel*10
 startVertex=np.array([0,1,2])
@@ -159,8 +159,8 @@ def GetComsol(x):
 
 q_array_line=[]
 q_array_cyl=[]
-cells_array=np.array([20,50,100,200,500,1000])
-alpha_array=np.array([5,10,15,20,25,30,35,40])
+cells_array=np.array([5,10,20,50,100,200,500,1000])
+alpha_array=np.array([5,10,15,20,25,30,40,50])
 
 arr_line_error=np.zeros((len(cells_array), len(alpha_array)))
 arr_cyl_error=np.zeros((len(cells_array), len(alpha_array)))
@@ -206,7 +206,7 @@ for c in range(len(cells_array)):
         #Now we are gonna solve the same problem but using the elliptic integrals for the single layer 
         P=Classic(3*L_vessel, R_vessel)
         if cells_array[c]<25:
-            G_ij=P.get_single_layer_vessel_coarse(len(net.pos_s))/2/np.pi/R_vessel
+            G_ij=P.get_single_layer_vessel_coarse(len(net.pos_s), 10)/2/np.pi/R_vessel
         else:
             G_ij=P.get_single_layer_vessel(len(net.pos_s))/2/np.pi/R_vessel
         #The factor 2*np.pi*R_vessel arises because we consider q as the total flux and not the point gradient of concentration

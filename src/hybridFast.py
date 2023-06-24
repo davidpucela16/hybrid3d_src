@@ -132,13 +132,16 @@ class hybrid_set_up():
         
         # =============================================================================
         #         NOTICE HERE, THIS IS WHERE WE MULTIPLY BY h so to make it dimensionally consistent relative to the FV integration
-        A_matrix=csc_matrix((a[2]*self.mesh_3D.h, (a[0], a[1])), shape=(size,size)) + csc_matrix((b[2]*self.mesh_3D.h, (b[0], b[1])), shape=(size, size))
+        #A_matrix=csc_matrix((a[2]*self.mesh_3D.h, (a[0], a[1])), shape=(size,size)) + csc_matrix((b[2]*self.mesh_3D.h, (b[0], b[1])), shape=(size, size))
+        
+        #Modified June 24th
+        A_matrix=csc_matrix((a[2]*self.mesh_3D.h, (a[0], a[1])), shape=(size,size)) + csc_matrix((b[2], (b[0], b[1])), shape=(size, size))
+        
         #       We only multiply the non boundary part of the matrix by h because in the boundaries assembly we need to include the h due to the difference
         #       between the Neumann and Dirichlet boundary conditions. In short AssemblyDiffusion3DInterior returns data that needs to be multiplied by h 
         #       while AssemblyDiffusion3DBoundaries is already dimensionally consistent
         # =============================================================================
         self.I_ind_array=b[3]*self.mesh_3D.h
-        
         
         return A_matrix
     
@@ -171,7 +174,7 @@ class hybrid_set_up():
         for bound in self.mesh_3D.full_full_boundary:
         #This loop goes through each of the boundary cells, and it goes repeatedly 
         #through the edges and corners accordingly
-            
+            #pdb.set_trace()
             for k in bound: #Make sure this is the correct boundary variable
                 k_neigh=GetNeighbourhood(self.n, mesh.cells_x, mesh.cells_y, mesh.cells_z, k)
                 
@@ -181,12 +184,13 @@ class hybrid_set_up():
                 if self.BC_type[c]=="Dirichlet":
                     r_k=KernelIntegralSurfaceFast(net.s_blocks, net.tau, net.h, net.pos_s, net.source_edge,
                                                           pos_boundary, normal,  k_neigh, 'P', self.D, self.mesh_3D.h)
-                    
+                    #Following line added 20th June
+                    kernel=csc_matrix((r_k[0]*2*h,(np.zeros(len(r_k[0])),r_k[1])), shape=(1,len(self.mesh_1D.s_blocks)))
                 if self.BC_type[c]=="Neumann":
                     r_k=KernelIntegralSurfaceFast(net.s_blocks, net.tau, net.h, net.pos_s, net.source_edge,
                                                           pos_boundary, normal,  k_neigh, 'G', self.D, self.mesh_3D.h)
                 
-                kernel=csc_matrix((r_k[0]*h**2,(np.zeros(len(r_k[0])),r_k[1])), shape=(1,len(self.mesh_1D.s_blocks)))
+                    kernel=csc_matrix((r_k[0]*h**2,(np.zeros(len(r_k[0])),r_k[1])), shape=(1,len(self.mesh_1D.s_blocks)))
                 B[k,:]-=kernel
             c+=1
             
@@ -417,7 +421,6 @@ def GetInterfaceKernelsFast(k,m,pos_k, pos_m,h_3D, n, cells_x, cells_y, cells_z,
 #     #if np.linalg.norm(normal) > 1: print('ERROR!!!!!!!!!!!!!!!!!')
 #     if np.linalg.norm(normal) > 1.0000001: pdb.set_trace()
 # =============================================================================
-    
     
     sources_k_m=np.arange(len(s_blocks), dtype=np.int64)[in1D(s_blocks, GetUncommon(k_neigh, m_neigh))]
     sources_m_k=np.arange(len(s_blocks), dtype=np.int64)[in1D(s_blocks, GetUncommon(m_neigh, k_neigh))]

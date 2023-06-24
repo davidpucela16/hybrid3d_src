@@ -45,7 +45,7 @@ def AssemblyDiffusion3DInterior(mesh_object):
         # =============================================================================
         #       We only multiply the non boundary part of the matrix by h because in the boundaries assembly we need to include the h due to the difference
         #       between the Neumann and Dirichlet boundary conditions. In short AssemblyDiffusion3DInterior returns data that needs to be multiplied by h 
-        #       while AssemblyDiffusion3DBoundaries is already dimensionally consistent
+        #       while path_output is already dimensionally consistent
         # =============================================================================
 
     return(np.array([row_array, col_array, data_array]))
@@ -61,15 +61,18 @@ def AssemblyDiffusion3DBoundaries(mesh_object, BC_type, BC_value):
     
     BC_array=np.zeros(mesh_object.size_mesh) #The array with the BC values 
     c=0
+    arr=np.zeros(mesh_object.size_mesh)
     for bound in mesh_object.full_full_boundary:
     #This loop goes through each of the boundary cells, and it goes repeatedly 
     #through the edges and corners accordingly
         for k in bound: #Make sure this is the correct boundary variable
+            arr[k]+=1
             if BC_type[c]=="Dirichlet":
                 row_array=np.append(row_array, k)
                 col_array=np.append(col_array, k)
                 data_array=np.append(data_array, -2*mesh_object.h)
                 BC_array[k]=2*BC_value[c]*mesh_object.h
+                
                 
             if BC_type[c]=="Neumann":
                 BC_array[k]=BC_value[c]*mesh_object.h**2
@@ -80,6 +83,7 @@ def AssemblyDiffusion3DBoundaries(mesh_object, BC_type, BC_value):
         #       between the Neumann and Dirichlet boundary conditions. In short AssemblyDiffusion3DInterior returns data that needs to be multiplied by h 
         #       while AssemblyDiffusion3DBoundaries is already dimensionally consistent
         # =============================================================================
+    print("quantity of wrong shit: ", np.sum(arr>3))
     return(row_array, col_array, data_array, BC_array)      
 
 
