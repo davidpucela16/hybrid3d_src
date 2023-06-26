@@ -368,6 +368,7 @@ class hybrid_set_up():
         return
     
     def ReAssemblyMatrices(self):
+        self.E_matrix=self.Gij+self.q_portion
         Upper=sp.sparse.hstack((self.A_matrix, self.B_matrix, self.C_matrix))
         Middle=sp.sparse.hstack((self.D_matrix, self.E_matrix, self.F_matrix))
         Down=sp.sparse.hstack((self.G_matrix, self.H_matrix, self.I_matrix))

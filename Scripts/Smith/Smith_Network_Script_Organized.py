@@ -81,7 +81,7 @@ simple_plotting=True
 Constant_Cv=False
 already_loaded=False
 
-
+linear_consumption=True
 
 #%%%%%%%%%%%%%
 
@@ -248,9 +248,6 @@ if not Computation_Si_V:
     sp.sparse.save_npz(os.path.join(path_matrices, 'Si_V'), Si_V)
 else:
     Si_V=sp.sparse.load_npz(os.path.join(path_matrices, 'Si_V.npz'))
-#%%
-
-
 
 
 
@@ -260,11 +257,24 @@ if Computation_bool:
         prob.AssemblyProblem(path_matrices)
         A=prob.Full_linear_matrix
         #M_D=0.001
-        
         Real_diff=1.2e5 #\mu m^2 / min
         CMRO2=Real_diff * M_D
         b=prob.Full_ind_array.copy()
-        b[:prob.F]-=M_D*mesh.h**3
+        if not linear_consumption:
+            
+            b[:prob.F]-=M_D*mesh.h**3
+        else:
+            orig_A=prob.A_matrix.copy()
+            orig_B=prob.B_matrix.copy()
+            
+            prob.A_matrix-=sp.sparse.diags(np.ones(prob.F), 0)*M_D*mesh.h**3
+            prob.B_matrix-=Si_V*M_D*mesh.h**3
+            
+            A=prob.ReAssemblyMatrices()
+            
+            prob.A_matrix=orig_A.copy()
+            prob.B_matrix=orig_B.copy()
+            
         print("If all BCs are newton the sum of all coefficients divided by the length of the network should be close to 1", np.sum(prob.B_matrix.toarray())/np.sum(net.L))
         plt.spy(prob.Full_linear_matrix)
         already_loaded=True
@@ -279,11 +289,6 @@ if Computation_bool:
         sol=np.concatenate((sol, np.ones(prob.S)))
     else:
         #sol=dir_solve(prob.Full_linear_matrix,-prob.Full_ind_array)
-        start=time.time()
-        aa=GetInitialGuess(np.ones(len(edges)), prob)
-        end=time.time()
-        print("time= ", end-start)
-        sol=np.concatenate((aa[0], aa[1], aa[2]))
         sol = dir_solve(A, -b)
         np.save(os.path.join(path_output_data, 'sol'),sol)
 
@@ -359,7 +364,6 @@ if rec_bool:
     aaz=VisualizationTool(prob, 2,0,1, np.array([[16,16],[16,289],[289,16],[289,289]]), res)
     aaz.GetVolumeData(num_processes, process, perp_axis_res, path_vol_data, shrink_factor)
 
-phi_coarse=GetCoarsePhi(prob, prob.q, prob.Cv, prob.s)
 
 #%% - Data for Avizo
 from PrePostTemp import GetEdgesConcentration,GetSingleEdgeSources, GetEdgesConcentration, LabelVertexEdge
@@ -374,15 +378,31 @@ np.savetxt(os.path.join(path_matrices, "Entry_Exit.txt"), vertex_label, fmt='%d'
 title="@10 # Entry Exit Edge"
 np.savetxt(os.path.join(path_matrices, "Entry_Exit_Edge.txt"), vertex_label, fmt='%d', delimiter=' ', header=title, comments='')
 
-#%%
-#def GetVertexConc(vertex_to_edge, startVertex, )
 
-for i in np.where(edge_label==1)[0][:]: #1 if entering, 2 if exiting
+for i in np.where(edge_label==2)[0][:]: #1 if entering, 2 if exiting
     #plt.plot(GetSingleEdgeConc(net.cells, prob.Cv, i))
     plt.plot(prob.Cv[GetSingleEdgeSources(net.cells, i)])
     plt.plot(np.zeros(net.cells[i])+ edges_concentration[i])
     #plt.ylim((0.98,1))
-#plt.show()
+plt.show()
+
+#%%
+
+from PrePostTemp import GetPointsAM, GetConcentrationAM, GetConcentrationVertices
+
+
+points_position=GetPointsAM(edges, pos_vertex, net.pos_s, net.cells)
+title="@11 # points"
+np.savetxt(os.path.join(path_matrices, "Points.txt"), points_position, fmt='%f', delimiter=' ', header=title, comments='')
+
+vertices_concentration=GetConcentrationVertices(vertex_to_edge, startVertex, net.cells)
+title="@12 # vertices concentration"
+np.savetxt(os.path.join(path_matrices, "vertices_concentration.txt"), vertices_concentration, fmt='%f', delimiter=' ', header=title, comments='')
+
+
+points_concentration=GetConcentrationAM(edges, vertices_concentration, prob.Cv, net.cells)
+title="@13 # concentration points"
+np.savetxt(os.path.join(path_matrices, "Points.txt"), points_concentration, fmt='%f', delimiter=' ', header=title, comments='')
 
 
 #%% - To calculate different PDFs
