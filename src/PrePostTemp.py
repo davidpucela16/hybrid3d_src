@@ -467,7 +467,7 @@ def GetPointsAM(edges, pos_vertex, pos_s, cells_1D):
         points_array=np.vstack((points_array, local_arr))
     return points_array
 
-def GetConcentrationAM(edges, property_vertex, property_point, cells_1D, Cv):
+def GetConcentrationAM(edges, property_vertex, property_point, cells_1D):
     """Returns the concentration (or any other property) per source including the 
     vertices as required by the .am format"""
     points_array=np.zeros(0, dtype=np.float64)
