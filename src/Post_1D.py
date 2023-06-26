@@ -326,77 +326,8 @@ class VisualizationTool():
         
         return(phi,crds, others, points_a, points_b)
 
-def Get1DCOMSOL(file_path):
-    # Open the file for reading
-    with open(file_path, "r") as file:
-        # Skip the header lines
-        for _ in range(10):
-            next(file)
-    
-        # Read the remaining lines and extract the values
-        values = []
-        for line in file:
-            # Split the line into columns using space as the separator
-            columns = line.split()
-    
-            # Extract the values from the first two columns
-            value1 = float(columns[0])
-            value2 = float(columns[1])
-    
-            # Add the values to the list
-            values.append((value1, value2))
-
-    phi_bar_COMSOL = np.array(values)[:, 1]
-    x_COMSOL = np.array(values)[:, 0]
-    return(phi_bar_COMSOL, x_COMSOL)   
-
-@njit
-def GetCoarsePhi( q, Cv, s, prob_args):
-    """Provides the average concentration per FV cell on the coarse mesh.
-    It also returns the arrays to construct the average of the rapid term per cell"""
-    phi=np.zeros(len(s), dtype=np.float64)
-    kernel_array=np.zeros(0, dtype=np.float64)
-    sources_array=np.zeros(0, dtype=np.int64)
-    for i in range(len(s)):
-        #print("FV Block: ", i)
-        kernel_q,sources=SimpsonVolume(i, prob_args)
-        phi[i]=kernel_q.dot(q[sources]) + s[i]
-        
-        kernel_array=np.concatenate((kernel_array, kernel_q))
-        sources_array=np.concatenate((sources_array, sources))
-    return phi, kernel_array, sources_array
-
-@njit
-def GetCoarsekernels(prob_args, path):
-    kernel_array=np.zeros(0, dtype=np.float64)
-    sources_array=np.zeros(0, dtype=np.int64)
-    row_array=np.zeros(0, dtype=np.int64)
-    for i in range(len(prob_args[5])):
-        #print("FV Block: ", i)
-        kernel_q,sources=SimpsonVolume(i, prob_args)
-        kernel_array=np.concatenate((kernel_array, kernel_q))
-        sources_array=np.concatenate((sources_array, sources))
-        row_array=np.concatenate((row_array, np.zeros(len(sources), dtype=np.int64) + i))
-    return kernel_array, row_array,sources_array
-
-def GetInitialGuess(labels, prob):
-    """Not useful for the moment"""
-    label_per_source=np.repeat(labels, prob.mesh_1D.cells)
-    Cv=np.zeros(prob.S)+0.5
-    Cv[np.where(label_per_source==0)[0]]=1
-    Cv[np.where(label_per_source==1)[0]]=0.4
-    K_per_source=np.repeat(prob.K, prob.mesh_1D.cells)
-    q=K_per_source*Cv*0.5
-    prob_args=(prob.n, prob.mesh_3D.h, prob.mesh_3D.cells_x,  prob.mesh_3D.cells_y,  
-               prob.mesh_3D.cells_z,  prob.mesh_3D.pos_cells,  prob.mesh_1D.s_blocks, 
-               prob.mesh_1D.source_edge, prob.mesh_1D.tau, prob.mesh_1D.pos_s, 
-               prob.mesh_1D.h, prob.mesh_1D.R, prob.D)
-    neg_s,_,_=GetCoarsePhi(q, Cv, np.zeros(prob.F), prob_args)
-    
-    return -neg_s+0.9, q, Cv
-
 ############################################################################
-#   Some useful data modification for the network, Post processing for the 1D results
+#   Some useful data modification for the network
 ############################################################################
 
 def LabelVertexEdge(vertex_to_edge, init):
@@ -423,19 +354,60 @@ def LabelVertexEdge(vertex_to_edge, init):
 
 @njit
 def GetSingleEdgeSources(cells_per_segment,  edge):
-    """Returns the IDs of all the sources belonging to the edge in array form"""
     return np.arange(np.sum(cells_per_segment[:edge]),np.sum(cells_per_segment[:edge+1]))
 
 def GetEdgesConcentration(cells_per_segment, prop):
-    """Provides the average concentration per edge"""
     avg_edge_conc=np.zeros(len(cells_per_segment))
     for i in range(len(cells_per_segment)): #goes through every single source
         avg_edge_conc[i]=np.average(prop[GetSingleEdgeSources(cells_per_segment, i)])
     return avg_edge_conc
+
+
+@njit
+def GetCoarsePhi( q, Cv, s, prob_args):
+    phi=np.zeros(len(s), dtype=np.float64)
+    kernel_array=np.zeros(0, dtype=np.float64)
+    sources_array=np.zeros(0, dtype=np.int64)
+    for i in range(len(s)):
+        #print("FV Block: ", i)
+        kernel_q,sources=SimpsonVolume(i, prob_args)
+        phi[i]=kernel_q.dot(q[sources]) + s[i]
+        
+        kernel_array=np.concatenate((kernel_array, kernel_q))
+        sources_array=np.concatenate((sources_array, sources))
+    return phi, kernel_array, sources_array
+
+@njit
+def GetCoarsekernels(prob_args, path):
+    kernel_array=np.zeros(0, dtype=np.float64)
+    sources_array=np.zeros(0, dtype=np.int64)
+    row_array=np.zeros(0, dtype=np.int64)
+    for i in range(len(prob_args[5])):
+        #print("FV Block: ", i)
+        kernel_q,sources=SimpsonVolume(i, prob_args)
+        kernel_array=np.concatenate((kernel_array, kernel_q))
+        sources_array=np.concatenate((sources_array, sources))
+        row_array=np.concatenate((row_array, np.zeros(len(sources), dtype=np.int64) + i))
+    return kernel_array, row_array,sources_array
+
     
 
+def GetInitialGuess(labels, prob):
+    label_per_source=np.repeat(labels, prob.mesh_1D.cells)
+    Cv=np.zeros(prob.S)+0.5
+    Cv[np.where(label_per_source==0)[0]]=1
+    Cv[np.where(label_per_source==1)[0]]=0.4
+    K_per_source=np.repeat(prob.K, prob.mesh_1D.cells)
+    q=K_per_source*Cv*0.5
+    prob_args=(prob.n, prob.mesh_3D.h, prob.mesh_3D.cells_x,  prob.mesh_3D.cells_y,  
+               prob.mesh_3D.cells_z,  prob.mesh_3D.pos_cells,  prob.mesh_1D.s_blocks, 
+               prob.mesh_1D.source_edge, prob.mesh_1D.tau, prob.mesh_1D.pos_s, 
+               prob.mesh_1D.h, prob.mesh_1D.R, prob.D)
+    neg_s,_,_=GetCoarsePhi(q, Cv, np.zeros(prob.F), prob_args)
+    
+    return -neg_s+0.9, q, Cv
+
 def GetBoundarySources(pos_s, pos_vertex, vertex_label, entry_exit):
-    """Provides the IDs of the sources lying on the boundary"""
     if entry_exit=="entering":
         print("Entering segments")
         pos=pos_vertex[np.where(vertex_label==1)[0]]
@@ -454,47 +426,30 @@ def GetBoundarySources(pos_s, pos_vertex, vertex_label, entry_exit):
     return IDs
     
     
-def GetPointsAM(edges, pos_vertex, pos_s, cells_1D):
-    """Returns the coordinates of all the points (including the vertices)
-    as required by the .am format"""
-    points_array=np.zeros(((0,3)), dtype=np.float64)
-    ed=-1
-    for i in edges:
-        ed+=1
-        init_pos=np.sum(cells_1D[:ed])
-        end_pos=np.sum(cells_1D[:ed+1])
-        local_arr=np.vstack((pos_vertex[i[0]], pos_s[init_pos:end_pos],pos_vertex[i[1]]))
-        points_array=np.vstack((points_array, local_arr))
-    return points_array
+    
+def Get1DCOMSOL(file_path):
+    # Open the file for reading
+    with open(file_path, "r") as file:
+        # Skip the header lines
+        for _ in range(10):
+            next(file)
+    
+        # Read the remaining lines and extract the values
+        values = []
+        for line in file:
+            # Split the line into columns using space as the separator
+            columns = line.split()
+    
+            # Extract the values from the first two columns
+            value1 = float(columns[0])
+            value2 = float(columns[1])
+    
+            # Add the values to the list
+            values.append((value1, value2))
 
-def GetConcentrationAM(edges, property_vertex, property_point, cells_1D, Cv):
-    """Returns the concentration (or any other property) per source including the 
-    vertices as required by the .am format"""
-    points_array=np.zeros(0, dtype=np.float64)
-    ed=-1
-    for i in edges:
-        ed+=1
-        init_pos=np.sum(cells_1D[:ed])
-        end_pos=np.sum(cells_1D[:ed+1])
-        local_arr=np.vstack((property_vertex[i[0]], property_point[init_pos:end_pos],property_vertex[i[1]]))
-        points_array=np.vstack((points_array, local_arr))
-    return points_array
-
-def GetConcentrationVertices(vertex_to_edge, startVertex, cells_per_segment):
-    """Protivdes the value of a scalar field in the network at the vertices"""
-    value_array=np.zeros(0)
-    for i in range(len(vertex_to_edge)):
-        for ed in vertex_to_edge[i]:
-            value=0
-            sources=GetSingleEdgeSources(cells_per_segment,  ed)
-            if startVertex[ed]==i:
-                value+=sources[0]
-            else:
-                value+=sources[-1]
-        value/=len(vertex_to_edge[i])
-        value_array=np.append(value_array, value)
-    return value_array
-
+    phi_bar_COMSOL = np.array(values)[:, 1]
+    x_COMSOL = np.array(values)[:, 0]
+    return(phi_bar_COMSOL, x_COMSOL)   
     
     
     

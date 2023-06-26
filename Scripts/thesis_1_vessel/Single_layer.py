@@ -48,7 +48,7 @@ params = {'legend.fontsize': 'x-large',
          'axes.titlesize':'x-large',
          'xtick.labelsize':'x-large',
          'ytick.labelsize':'x-large', 
-         'font.size': 24,
+         'font.size': 30,
          'lines.linewidth': 2,
          'lines.markersize': 15}
 pylab.rcParams.update(params)
@@ -75,7 +75,7 @@ mesh=cart_mesh_3D(L_3D,cells_3D)
 
 mesh.AssemblyBoundaryVectors()
 
-
+pdb.set_trace()
 #%%
 # - This is the validation of the 1D transport eq without reaction
 
@@ -145,7 +145,7 @@ plt.xlabel("y")
 plt.legend()
 plt.savefig(path_output + "/alpha12.svg")
 plt.show()
-    
+
 
 #%%
 from PrePostTemp import Get1DCOMSOL
@@ -238,18 +238,70 @@ for c in range(len(cells_array)):
         #plt.plot(x_exact[ref_cells:ref_cells*2], q_exact[ref_cells:ref_cells*2], label="Exact")
         plt.ylabel("q", rotation=0)
         plt.xlabel("y")
-        plt.title("Cells={}, alpha={}".format(temp_cpv, alpha))
+        plt.title(r'q(s) for cells={}, $\alpha$={}'.format(temp_cpv, alpha))
         plt.legend()
-        plt.show()
+        
         err_line=(np.average(q_line[temp_cpv:2*temp_cpv])-np.average(q_COMSOL))/np.average(q_COMSOL)
         err_cyl=(np.average(q[temp_cpv:2*temp_cpv])-np.average(q_COMSOL))/np.average(q_COMSOL)
         
         arr_line_error[c,a]=err_line
         arr_cyl_error[c,a]=err_cyl
+        
+        if a==3 and c==2:
+            plt.savefig(path_output + "/Example_single_layer.svg")    
+        plt.show()
 np.save(path_output + "/arr_line_error" , arr_line_error)
 np.save(path_output + "/arr_cyl_error" , arr_cyl_error)
+np.save(path_output + "/q_array_cyl" , q_array_cyl)
+np.save(path_output + "/q_array_line" , q_array_line)
+np.save(path_output + "/cells_array" , cells_array)
+np.save(path_output + "/alpha_array" , alpha_array)
 
 
+#%%
+arr_line_error=np.load(path_output + "/arr_line_error.npy" )
+arr_cyl_error=np.load(path_output + "/arr_cyl_error.npy" )
+
+cells_array=np.load(path_output + "/cells_array.npy" )
+alpha_array=np.load(path_output + "/alpha_array.npy" )
+
+for i in range(len(alpha_array)):
+    if np.any(np.array([20,25,30])==alpha_array[i]): 
+        width=4
+        ls='-'
+    else:
+        width=2
+        ls='--'
+    print(width)
+    plt.plot(cells_array, np.abs(arr_cyl_error[:,i]), linestyle=ls, label=r'$\alpha$={}'.format(alpha_array[i]), linewidth=width)
+    plt.xscale('log')
+    plt.yscale('log')
+    plt.ylim((0.0001,0.2))
+    plt.xlabel(r'Cells per vessel $\left(\dfrac{L_v}{h_\Lambda}\right)$')
+    plt.ylabel(r'$\varepsilon_q$', rotation=0, labelpad=20)
+    
+plt.legend()
+plt.title("Cylinder approximation")
+plt.savefig(path_output + "/fig_cyl_error.svg")
+#%%
+for i in range(len(alpha_array)):
+    if np.any(np.array([20,25,30])==alpha_array[i]): 
+        width=4
+        ls='-'
+    else:
+        width=2
+        ls='--'
+    print(width)
+    plt.plot(cells_array, np.abs(arr_line_error[:,i]), linestyle=ls, label=r'$\alpha$={}'.format(alpha_array[i]), linewidth=width)
+    plt.xscale('log')
+    plt.yscale('log')
+    plt.ylim((0.0001,0.2))
+    plt.xlabel(r'Cells per vessel $\left(\dfrac{L_v}{h_\Lambda}\right)$')
+    plt.ylabel(r'$\varepsilon_q$', rotation=0, labelpad=20)
+    
+plt.legend()
+plt.title("Line approximation")
+plt.savefig(path_output + "/fig_line_error.svg")
 #%% - Make a nice figure with the evaluation of the concentration at several distances
 alpha=20
 temp_cpv=100

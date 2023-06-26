@@ -36,7 +36,7 @@ n=3
 shrink_factor=(cells_3D-1)/cells_3D
 Network=1
 gradient="x"
-M_D=0.0002
+M_D=0.0006
 
 # Paths
 script = os.path.abspath(sys.argv[0])
@@ -76,13 +76,10 @@ I_assembly_bool=os.path.exists(os.path.join(path_matrices, 'I_matrix.npz'))
 #Computation_bool= not os.path.exists(os.path.join(path_output_data, 'sol.npy'))
 Computation_Si_V=os.path.exists(os.path.join(path_matrices, 'Si_V.npz'))
 Computation_bool=True
-test_iterative=True
 rec_bool=False
 simple_plotting=True
 Constant_Cv=False
 already_loaded=False
-
-
 
 
 
@@ -182,7 +179,7 @@ with open(output_dir_network + '/output_6.txt', 'r') as file:
 Flow_rate=np.ndarray.flatten(df.values)*factor_flow
 
 
-K=np.average(diameters)/np.ndarray.flatten(diameters)
+K=np.average(diameters)/np.ndarray.flatten(diameters)*10
 #The flow rate is given in nl/s
 U = 4*Flow_rate/np.pi/diameters**2*1e9 #To convert to speed in micrometer/second
 

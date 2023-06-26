@@ -57,7 +57,7 @@ params = {'legend.fontsize': 'x-large',
           'axes.titlesize': 'x-large',
           'xtick.labelsize': 'x-large',
           'ytick.labelsize': 'x-large',
-          'font.size': 24,
+          'font.size': 28,
           'lines.linewidth': 2,
           'lines.markersize': 15}
 pylab.rcParams.update(params)
@@ -105,15 +105,16 @@ phi_bar_COMSOL, x_COMSOL = Get1DCOMSOL(file_path)
 
 # %%
 # - This is the validation of the 1D transport eq without reaction
-q_array = np.zeros((0, 3*temp_cpv))
+q_array = []
 phi_bar_list=[]
 x_list=[]
+q_line_arr=[]
 
 def GetComsol(x):
     closest_positions = np.argmin(np.abs(x_COMSOL[:, np.newaxis] - x), axis=0)
     return closest_positions
 #for cells_3D in np.array([5, 9, 13,19]):
-cells_1D_array=np.array([3,5,10,20,30,40,50])
+cells_1D_array=np.array([5,10,20,40,50,200])
 for temp_cpv in cells_1D_array:
     mesh = cart_mesh_3D(L_3D, cells_3D)
     h = L_vessel/temp_cpv
@@ -189,8 +190,9 @@ for temp_cpv in cells_1D_array:
     phi_bar_cyl=Cv-q_exact/np.repeat(K, net.cells)
     phi_bar_dip=Cv-q_dip/np.repeat(K, net.cells)
     
-    phi_bar_list.append(phi_bar_cyl)
-    
+    phi_bar_list.append(phi_bar_dip)
+    q_array.append(q_dip)
+    q_line_arr.append(q_line)
     x_list.append(x_exact)
     
     plt.plot(x_exact[temp_cpv:temp_cpv*2],
@@ -213,13 +215,38 @@ for temp_cpv in cells_1D_array:
     #phi_bar_array = np.vstack((phi_bar_array, Cv-q_exact/np.repeat(K, net.cells)))
 
 
+#%%
 
+plt.figure()
 plt.plot(x_COMSOL[pos_com],phi_bar_COMSOL[pos_com] , label='COMSOL', linewidth=4)
 for i in range(len(cells_1D_array)):
     temp_cpv=cells_1D_array[i]
     x_exact=x_list[i]
     phi_bar_cyl=phi_bar_list[i]
-    plt.plot(x_exact[temp_cpv:temp_cpv*2],phi_bar_cyl[temp_cpv:temp_cpv*2], label="$L_v/h=${}".format(temp_cpv))
+    plt.plot(x_exact[temp_cpv:temp_cpv*2],phi_bar_cyl[temp_cpv:temp_cpv*2], label=r'$L_v/h_\Lambda=${}'.format(temp_cpv))
+    
+plt.legend()
+plt.ylabel('$\overline{\phi}$', rotation=0, labelpad=20)
+plt.xlabel('$z (\mu m)$')
+plt.savefig(path_output + "/phi_bar_convergence.svg")
+
+#%%
+Cv_COMSOL=2-x_COMSOL/L_vessel
+
+q_COMSOL=K[1]*(Cv_COMSOL[pos_com]- phi_bar_COMSOL[pos_com])
+err=[]
+err_line=[]
+
+plt.figure()
+plt.plot(x_COMSOL[pos_com],q_COMSOL , label='COMSOL', linewidth=4)
+for i in range(len(cells_1D_array)):
+    temp_cpv=cells_1D_array[i]
+    x_exact=x_list[i]
+    q_dip=q_array[i]
+    q_line=q_line_arr[i]
+    plt.plot(x_exact[temp_cpv:temp_cpv*2],q_dip[temp_cpv:temp_cpv*2], label=r'$L_v/h_\Lambda=${}'.format(temp_cpv))
+    err.append((np.average(q_COMSOL)-np.average(q_dip[temp_cpv:temp_cpv*2]))/np.average(q_COMSOL))
+    err_line.append((np.average(q_COMSOL)-np.average(q_line[temp_cpv:temp_cpv*2]))/np.average(q_COMSOL))
     
 plt.legend()
 plt.ylabel('$\overline{\phi}$', rotation=0, labelpad=20)

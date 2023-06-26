@@ -175,6 +175,8 @@ shrink_factor_perp=((mesh.cells[2]-1)/mesh.cells[2])
 aaz.GetVolumeData(num_processes, process, perp_axis_res, path_vol_data, shrink_factor_perp)
 
 #%%
+from PrePostTemp import GetPointsAM, GetConcentrationAM, GetConcentrationVertices
+
 def GetPointsAM(edges, pos_vertex, pos_s, cells_1D):
     points_array=np.zeros(((0,3)), dtype=np.float64)
     ed=-1
