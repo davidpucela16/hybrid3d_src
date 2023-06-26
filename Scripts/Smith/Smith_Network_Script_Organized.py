@@ -376,7 +376,7 @@ title="@9 # Entry Exit"
 np.savetxt(os.path.join(path_matrices, "Entry_Exit.txt"), vertex_label, fmt='%d', delimiter=' ', header=title, comments='')
 
 title="@10 # Entry Exit Edge"
-np.savetxt(os.path.join(path_matrices, "Entry_Exit_Edge.txt"), vertex_label, fmt='%d', delimiter=' ', header=title, comments='')
+np.savetxt(os.path.join(path_matrices, "Entry_Exit_Edge.txt"), edge_label, fmt='%d', delimiter=' ', header=title, comments='')
 
 
 for i in np.where(edge_label==2)[0][:]: #1 if entering, 2 if exiting
@@ -398,7 +398,6 @@ np.savetxt(os.path.join(path_matrices, "Points.txt"), points_position, fmt='%f',
 vertices_concentration=GetConcentrationVertices(vertex_to_edge, startVertex, net.cells)
 title="@12 # vertices concentration"
 np.savetxt(os.path.join(path_matrices, "vertices_concentration.txt"), vertices_concentration, fmt='%f', delimiter=' ', header=title, comments='')
-
 
 points_concentration=GetConcentrationAM(edges, vertices_concentration, prob.Cv, net.cells)
 title="@13 # concentration points"

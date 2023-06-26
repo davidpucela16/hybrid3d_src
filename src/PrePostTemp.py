@@ -476,11 +476,11 @@ def GetConcentrationAM(edges, property_vertex, property_point, cells_1D):
         ed+=1
         init_pos=np.sum(cells_1D[:ed])
         end_pos=np.sum(cells_1D[:ed+1])
-        local_arr=np.vstack((property_vertex[i[0]], property_point[init_pos:end_pos],property_vertex[i[1]]))
-        points_array=np.vstack((points_array, local_arr))
+        local_arr=np.append(property_vertex[i[0]],np.append(property_point[init_pos:end_pos],property_vertex[i[1]]))
+        points_array=np.concatenate((points_array, local_arr))
     return points_array
 
-def GetConcentrationVertices(vertex_to_edge, startVertex, cells_per_segment):
+def GetConcentrationVertices(vertex_to_edge, startVertex, cells_per_segment, property_sources):
     """Protivdes the value of a scalar field in the network at the vertices"""
     value_array=np.zeros(0)
     for i in range(len(vertex_to_edge)):
@@ -488,9 +488,9 @@ def GetConcentrationVertices(vertex_to_edge, startVertex, cells_per_segment):
             value=0
             sources=GetSingleEdgeSources(cells_per_segment,  ed)
             if startVertex[ed]==i:
-                value+=sources[0]
+                value+=property_sources[sources[0]]
             else:
-                value+=sources[-1]
+                value+=property_sources[sources[-1]]
         value/=len(vertex_to_edge[i])
         value_array=np.append(value_array, value)
     return value_array
