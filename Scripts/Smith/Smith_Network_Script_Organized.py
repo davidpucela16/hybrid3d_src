@@ -6,64 +6,58 @@ Created on Tue May 23 18:04:46 2023
 @author: pdavid
 """
 
+# Constants
+factor_flow=1
+factor_K=1
+cells_3D=20
+n=3
+shrink_factor=(cells_3D-1)/cells_3D
+Network=1
+gradient="x"
+M_D=0.001
+
 import os
 import sys
 
 script = os.path.abspath(sys.argv[0])
 path_script = os.path.dirname(script)
 print(path_script)
-
 name_script = script[script.rfind('/')+1:-3]
-
 path_src = os.path.join(path_script, '../../src')
 path_potentials = os.path.join(path_script, '../../Potentials')
-# Now the creation of the relevant folders to store the output
-path_matrices = os.path.join(path_src, '../../linear_system/' + name_script)
-path_output = os.path.join(path_src, '../../output_figures/' + name_script)
-
-path_thesis = os.path.join(path_src, '../../path_thesis/' + name_script)
-
-os.makedirs(path_matrices, exist_ok=True)
-os.makedirs(path_output, exist_ok=True)
-
 sys.path.append(path_src)
 sys.path.append(path_potentials)
 
-# Constants
-factor_flow=1
-cells_3D=20
-n=3
-shrink_factor=(cells_3D-1)/cells_3D
-Network=1
-gradient="x"
-M_D=0.0006
-
-# Paths
-script = os.path.abspath(sys.argv[0])
-path_script = os.path.dirname(script)
-print(path_script)
-#path_network="/home/pdavid/Bureau/PhD/Network_Flo/Synthetic_ROIs_300x300x300" #The path with the network
+#Network
 path_network=os.path.join(path_src, "../../networks/Synthetic_ROIs_300x300x300")
-
-#Directory to save the assembled matrices and solution
-path_matrices=os.path.join(path_matrices,"F{}_n{}".format(cells_3D, n))
-path_phi_bar = os.path.join(path_matrices, 'path_phi_bar')
-
-#Directory to save the divided fiiles of the network
-output_dir_network=os.path.join(path_matrices, "divided_files_{}".format(gradient))
-
 filename=os.path.join(path_network,"Rea{}_synthetic_{}.Smt.SptGraph.am".format(Network, gradient))
 
-#Directory to save the reconstruction
+#Not used for now, but it will come in handy
+path_thesis = os.path.join(path_src, '../../path_thesis/' + name_script)
 
-#output_dir_network = '/home/pdavid/Bureau/PhD/Network_Flo/All_files/Split/'  # Specify the output directory here
-os.makedirs(output_dir_network, exist_ok=True)  # Create the output directory if it doesn't exist
+#The folder where to save the results
+path_output = os.path.join(path_src, '../../output_figures/' + name_script)
+path_output_data=os.path.join(path_output,"F{}_n{}/".format(cells_3D, n)+gradient)
+
+#Directory to save the assembled matrices and solution
+path_matrices=os.path.join(path_output,"F{}_n{}".format(cells_3D, n))
+#Directory to save the divided fiiles of the network
+path_am=os.path.join(path_matrices, "divided_files_{}".format(gradient))
+path_I_matrix=os.path.join(path_matrices, gradient)
+#path_phi_bar = os.path.join(path_matrices, 'path_phi_bar')
+
 os.makedirs(path_output, exist_ok=True)
 os.makedirs(path_matrices, exist_ok=True)
-path_output_data=os.path.join(path_output, gradient)
-os.makedirs(path_output_data, exist_ok=True)
-os.makedirs(path_phi_bar, exist_ok=True)
+#os.makedirs(path_phi_bar, exist_ok=True)
+os.makedirs(path_I_matrix, exist_ok=True)
 os.makedirs(os.path.join(path_matrices, "E_portion"), exist_ok=True)
+os.makedirs(path_am, exist_ok=True)
+
+import shutil
+destination_directory = os.path.join(path_am, 'network.am')
+# Copy the directory recursively
+shutil.copy(filename, destination_directory)
+
 
 #True if no need to compute
 phi_bar_bool=os.path.exists(os.path.join(path_matrices, 'phi_bar_q.npz')) and os.path.exists(os.path.join(path_matrices, 'phi_bar_s.npz')) 
@@ -73,16 +67,17 @@ B_assembly_bool=os.path.exists(os.path.join(path_matrices, 'B_matrix.npz'))
 I_assembly_bool=os.path.exists(os.path.join(path_matrices, 'I_matrix.npz'))
 #I_assembly_bool=False
 #True if need to compute
-#Computation_bool= not os.path.exists(os.path.join(path_output_data, 'sol.npy'))
 Computation_Si_V=os.path.exists(os.path.join(path_matrices, 'Si_V.npz'))
-Computation_bool= not os.path.exists(os.path.join(path_output_data, 'sol.npy'))
+Computation_bool= not os.path.exists(os.path.join(path_matrices, 'sol.npy'))
 rec_bool=False
-simple_plotting=False
+simple_plotting=True
 Constant_Cv=False
 already_loaded=False
 
 linear_consumption=True
-
+phi_bar_bool=False
+I_assembly_bool=False
+Computation_bool=True
 #%%%%%%%%%%%%%
 
 import pandas as pd
@@ -124,54 +119,53 @@ pylab.rcParams.update(params)
 
 
 #######################################################################################
-
 if Computation_bool: 
-    output_files = SplitFile(filename, output_dir_network)
+    output_files = SplitFile(filename, path_am)
     print("Split files:")
     for file in output_files:
         print(file)
 
 #%
-df = pd.read_csv(output_dir_network + '/output_0.txt', skiprows=1, sep="\s+", names=["x", "y", "z"])
-with open(output_dir_network + '/output_0.txt', 'r') as file:
+df = pd.read_csv(path_am + '/output_0.txt', skiprows=1, sep="\s+", names=["x", "y", "z"])
+with open(path_am + '/output_0.txt', 'r') as file:
     # Read the first line
     output_zero = file.readline()
 pos_vertex=df.values
 
-df = pd.read_csv(output_dir_network + '/output_1.txt', skiprows=1, sep="\s+", names=["init", "end"])
-with open(output_dir_network + '/output_1.txt', 'r') as file:
+df = pd.read_csv(path_am + '/output_1.txt', skiprows=1, sep="\s+", names=["init", "end"])
+with open(path_am + '/output_1.txt', 'r') as file:
     # Read the first line
     output_one = file.readline()
 edges=df.values
 
-df = pd.read_csv(output_dir_network + '/output_2.txt', skiprows=1, sep="\s+", names=["cells_per_segment"])
-with open(output_dir_network + '/output_2.txt', 'r') as file:
+df = pd.read_csv(path_am + '/output_2.txt', skiprows=1, sep="\s+", names=["cells_per_segment"])
+with open(path_am + '/output_2.txt', 'r') as file:
     # Read the first line
     output_two = file.readline()
 cells_per_segment=np.ndarray.flatten(df.values)
 
-df = pd.read_csv(output_dir_network + '/output_3.txt', skiprows=1, sep="\s+", names=["x", "y", "z"])
-with open(output_dir_network + '/output_3.txt', 'r') as file:
+df = pd.read_csv(path_am + '/output_3.txt', skiprows=1, sep="\s+", names=["x", "y", "z"])
+with open(path_am + '/output_3.txt', 'r') as file:
     # Read the first line
     output_three= file.readline()
 points=np.ndarray.flatten(df.values)
 
-df = pd.read_csv(output_dir_network + '/output_4.txt', skiprows=1, sep="\s+", names=["length"])
-with open(output_dir_network + '/output_4.txt', 'r') as file:
+df = pd.read_csv(path_am + '/output_4.txt', skiprows=1, sep="\s+", names=["length"])
+with open(path_am + '/output_4.txt', 'r') as file:
     # Read the first line
     output_four= file.readline()
 diameters=np.ndarray.flatten(df.values)
 
 diameters=diameters[np.arange(len(edges))*2]
 
-df = pd.read_csv(output_dir_network + '/output_5.txt', skiprows=1, sep="\s+", names=["flow_rate"])
-with open(output_dir_network + '/output_5.txt', 'r') as file:
+df = pd.read_csv(path_am + '/output_5.txt', skiprows=1, sep="\s+", names=["flow_rate"])
+with open(path_am + '/output_5.txt', 'r') as file:
     # Read the first line
     output_five= file.readline()
 Pressure=np.ndarray.flatten(df.values)
 
-df = pd.read_csv(output_dir_network + '/output_6.txt', skiprows=1, sep="\s+", names=["flow_rate"])
-with open(output_dir_network + '/output_6.txt', 'r') as file:
+df = pd.read_csv(path_am + '/output_6.txt', skiprows=1, sep="\s+", names=["flow_rate"])
+with open(path_am + '/output_6.txt', 'r') as file:
     # Read the first line
     output_six= file.readline()
 
@@ -179,9 +173,9 @@ with open(output_dir_network + '/output_6.txt', 'r') as file:
 Flow_rate=np.ndarray.flatten(df.values)*factor_flow
 
 
-K=np.average(diameters)/np.ndarray.flatten(diameters)*10
+K=np.average(diameters)/np.ndarray.flatten(diameters)*factor_K
 #The flow rate is given in nl/s
-U = 4*Flow_rate/np.pi/diameters**2*1e9 #To convert to speed in micrometer/second
+U = 4*Flow_rate/np.pi/diameters**2*1e9*factor_flow #To convert to speed in micrometer/second
 
 startVertex=edges[:,0].copy()
 endVertex=edges[:,1].copy()
@@ -290,11 +284,11 @@ if Computation_bool:
     else:
         #sol=dir_solve(prob.Full_linear_matrix,-prob.Full_ind_array)
         sol = dir_solve(A, -b)
-        np.save(os.path.join(path_output_data, 'sol'),sol)
+        np.save(os.path.join(path_matrices, 'sol'),sol)
 
 
 #%%
-sol=np.load(os.path.join(path_output_data, 'sol.npy'))
+sol=np.load(os.path.join(path_matrices, 'sol.npy'))
 prob.q=sol[prob.F:prob.F+prob.S]
 prob.s=sol[:prob.F]
 prob.Cv=sol[-prob.S:]
@@ -333,21 +327,23 @@ cbar_ax.set_position([0.83, 0.15, 0.03, 0.7])  # Adjust the position as needed
 plt.show()
 
 #%%
-res=100
+res=40
 
 corners=np.array([[0,0],[0,L_3D[0]],[L_3D[0],0],[L_3D[0],L_3D[0]]])*shrink_factor + L_3D[0]*(1-shrink_factor)/2
 if simple_plotting:    
     
-    aax=VisualizationTool(prob, 0,1,2, corners, res)
-    aax.GetPlaneData(path_output_data)
-    aax.PlotData(path_output_data)
+# =============================================================================
+#     aax=VisualizationTool(prob, 0,1,2, corners, res)
+#     aax.GetPlaneData(path_output_data)
+#     aax.PlotData(path_output_data)
+# =============================================================================
     aay=VisualizationTool(prob, 1,0,2, corners, res)
     aay.GetPlaneData(path_output_data)
     aay.PlotData(path_output_data)
-    aaz=VisualizationTool(prob, 2,0,1, corners, res)
-    aaz.GetPlaneData(path_output_data)
-    aaz.PlotData(path_output_data)
 # =============================================================================
+#     aaz=VisualizationTool(prob, 2,0,1, corners, res)
+#     aaz.GetPlaneData(path_output_data)
+#     aaz.PlotData(path_output_data)
 #     aaz=VisualizationTool(prob, 2,1,0, corners, res)
 #     aaz.GetPlaneData(path_output_data)
 #     aaz.PlotData(path_output_data)
@@ -371,12 +367,12 @@ from PrePostTemp import GetEdgesConcentration,GetSingleEdgeSources, GetEdgesConc
 edges_concentration=GetEdgesConcentration(net.cells, prob.Cv)
 vertex_label, edge_label=LabelVertexEdge(vertex_to_edge, startVertex)
 title="@8 # Edge Concentration"
-np.savetxt(os.path.join(path_matrices, "Edge_concentration.txt"), edges_concentration, fmt='%f', delimiter=' ', header=title, comments='')
+np.savetxt(os.path.join(path_am, "Edge_concentration.txt"), edges_concentration, fmt='%f', delimiter=' ', header=title, comments='')
 title="@9 # Entry Exit"
-np.savetxt(os.path.join(path_matrices, "Entry_Exit.txt"), vertex_label, fmt='%d', delimiter=' ', header=title, comments='')
+np.savetxt(os.path.join(path_am, "Entry_Exit.txt"), vertex_label, fmt='%d', delimiter=' ', header=title, comments='')
 
 title="@10 # Entry Exit Edge"
-np.savetxt(os.path.join(path_matrices, "Entry_Exit_Edge.txt"), edge_label, fmt='%d', delimiter=' ', header=title, comments='')
+np.savetxt(os.path.join(path_am, "Entry_Exit_Edge.txt"), edge_label, fmt='%d', delimiter=' ', header=title, comments='')
 
 
 for i in np.where(edge_label==2)[0][:]: #1 if entering, 2 if exiting
@@ -393,15 +389,15 @@ from PrePostTemp import GetPointsAM, GetConcentrationAM, GetConcentrationVertice
 
 points_position=GetPointsAM(edges, pos_vertex, net.pos_s, net.cells)
 title="@11 # points"
-np.savetxt(os.path.join(path_matrices, "Points.txt"), points_position, fmt='%f', delimiter=' ', header=title, comments='')
+np.savetxt(os.path.join(path_am, "Points.txt"), points_position, fmt='%f', delimiter=' ', header=title, comments='')
 
 vertices_concentration=GetConcentrationVertices(vertex_to_edge, startVertex, net.cells, prob.Cv)
 title="@12 # vertices concentration"
-np.savetxt(os.path.join(path_matrices, "vertices_concentration.txt"), vertices_concentration, fmt='%f', delimiter=' ', header=title, comments='')
+np.savetxt(os.path.join(path_am, "vertices_concentration.txt"), vertices_concentration, fmt='%f', delimiter=' ', header=title, comments='')
 
 points_concentration=GetConcentrationAM(edges, vertices_concentration, prob.Cv, net.cells)
 title="@13 # concentration points"
-np.savetxt(os.path.join(path_matrices, "Points.txt"), points_concentration, fmt='%f', delimiter=' ', header=title, comments='')
+np.savetxt(os.path.join(path_am, "Points.txt"), points_concentration, fmt='%f', delimiter=' ', header=title, comments='')
 
 
 #%% - To calculate different PDFs
