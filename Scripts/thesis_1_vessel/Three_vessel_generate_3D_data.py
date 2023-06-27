@@ -139,7 +139,7 @@ prob.phi_bar_bool=phi_bar_bool
 prob.B_assembly_bool=B_assembly_bool
 prob.I_assembly_bool=I_assembly_bool
 
-rec_bool=True
+rec_bool=False
 Computation_bool= not os.path.exists(os.path.join(path_matrices, "sol_cyl.npy"))
 
 if Computation_bool:
@@ -173,7 +173,7 @@ np.savetxt(os.path.join(path_output, "EdgeConnectivity.txt"), np.vstack((startVe
 
 from PrePostTemp import VisualizationTool
 res=100
-num_processes=1
+num_processes=30
 process=0 #This must be kept to zero for the parallel reconstruction to go right
 perp_axis_res=res*3
 path_vol_data=os.path.join(path_output, "vol_data")
@@ -241,8 +241,18 @@ title="\n@4 # EdgePointCoordinates"
 np.savetxt(os.path.join(path_output, "EdgePointCoordinates.txt"), points_position, fmt='%f', delimiter=' ', header=title, comments='')
 
 
+#%%
 
 
+from PrePostTemp import GetPointsAM, GetConcentrationAM, GetConcentrationVertices
+
+vertices_concentration=GetConcentrationVertices(vertex_to_edge, startVertex, net.cells, prob.Cv)
+title="@5 # vertices concentration"
+np.savetxt(os.path.join(path_output, "vertices_concentration.txt"), vertices_concentration, fmt='%f', delimiter=' ', header=title, comments='')
+
+points_concentration=GetConcentrationAM(edges, vertices_concentration, prob.Cv, net.cells)
+title="@6 # concentration points"
+np.savetxt(os.path.join(path_output, "Points.txt"), points_concentration, fmt='%f', delimiter=' ', header=title, comments='')
 
 
 

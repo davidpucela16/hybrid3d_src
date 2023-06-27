@@ -10,7 +10,6 @@ wait $!
 
 
 sed -i 's/Computation_bool=True/Computation_bool=False/' $script_orig
-sed -i 's/rec_bool=False/rec_bool=True/' $script_orig
 sed -i 's/simple_plotting=True/simple_plotting=False/' $script_orig
 
 script_name="${script_orig%.py}"
@@ -29,7 +28,8 @@ for ((x=0; x<num_scripts; x++)); do
 	sed -i "s/CheckLocalConservativenessFlowRate(/#CheckLocalCons/" "$script"
 	sed -i "s/^name_script=/#name_script=/" "$script"  # Comment out the original name_script line
 	sed -i "/^#name_script=/a name_script='${script_name%.py}'" "$script"  # Add new name_script line
-				    
+	sed -i 's/rec_bool=False/rec_bool=True/' "$script"
+			    
 	python "$script" &  # Execute the script in the background
 	pids[$x]=$!  # Store the process ID
 done

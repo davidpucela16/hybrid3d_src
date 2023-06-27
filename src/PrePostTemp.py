@@ -482,14 +482,13 @@ def GetConcentrationVertices(vertex_to_edge, startVertex, cells_per_segment, pro
     """Protivdes the value of a scalar field in the network at the vertices"""
     value_array=np.zeros(0)
     for i in range(len(vertex_to_edge)):
+        value=0
         for ed in vertex_to_edge[i]:
-            value=0
             sources=GetSingleEdgeSources(cells_per_segment,  ed)
             if startVertex[ed]==i:
-                value+=property_sources[sources[0]]
+                value+=property_sources[sources[0]]/len(vertex_to_edge[i])
             else:
-                value+=property_sources[sources[-1]]
-        value/=len(vertex_to_edge[i])
+                value+=property_sources[sources[-1]]/len(vertex_to_edge[i])
         value_array=np.append(value_array, value)
     return value_array
 
