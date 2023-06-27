@@ -139,7 +139,7 @@ prob.phi_bar_bool=phi_bar_bool
 prob.B_assembly_bool=B_assembly_bool
 prob.I_assembly_bool=I_assembly_bool
 
-rec_bool=False
+rec_bool=True
 Computation_bool= not os.path.exists(os.path.join(path_matrices, "sol_cyl.npy"))
 
 if Computation_bool:
@@ -173,7 +173,7 @@ np.savetxt(os.path.join(path_output, "EdgeConnectivity.txt"), np.vstack((startVe
 
 from PrePostTemp import VisualizationTool
 res=100
-num_processes=30
+num_processes=1
 process=0 #This must be kept to zero for the parallel reconstruction to go right
 perp_axis_res=res*3
 path_vol_data=os.path.join(path_output, "vol_data")
