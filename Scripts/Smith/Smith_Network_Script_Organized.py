@@ -75,9 +75,9 @@ I_assembly_bool=os.path.exists(os.path.join(path_matrices, 'I_matrix.npz'))
 #True if need to compute
 #Computation_bool= not os.path.exists(os.path.join(path_output_data, 'sol.npy'))
 Computation_Si_V=os.path.exists(os.path.join(path_matrices, 'Si_V.npz'))
-Computation_bool=True
+Computation_bool= not os.path.exists(os.path.join(path_output_data, 'sol.npy'))
 rec_bool=False
-simple_plotting=True
+simple_plotting=False
 Constant_Cv=False
 already_loaded=False
 
@@ -294,7 +294,7 @@ if Computation_bool:
 
 
 #%%
-#sol=np.load(os.path.join(path_output_data, 'sol.npy'))
+sol=np.load(os.path.join(path_output_data, 'sol.npy'))
 prob.q=sol[prob.F:prob.F+prob.S]
 prob.s=sol[:prob.F]
 prob.Cv=sol[-prob.S:]
@@ -357,7 +357,7 @@ if simple_plotting:
 # =============================================================================
 
 if rec_bool:
-    num_processes=10
+    num_processes=1
     process=0 #This must be kept to zero for the parallel reconstruction to go right
     perp_axis_res=res
     path_vol_data=os.path.join(path_output_data, "vol_data")
