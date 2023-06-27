@@ -245,6 +245,24 @@ def AssemblyVertices(U, D, h, cells, sparse_arrs, vertex_to_edge, R, init, BCs, 
 #analytical=(np.exp(-Pe*x)-np.exp(-Pe))/(1-np.exp(-Pe))
 
 
+def AssignFlowBC(gradient, direction, pos_vertices, label_vertex):
+    pos=np.where(np.array(['x', 'y', 'z'])==direction)[0][0]
+    bc_uid=np.zeros(0, dtype=np.int64)
+    bc_value=np.zeros(0, dtype=np.float64)
+    
+    start=np.min(pos_vertices[:,pos])
+    L=np.max(pos_vertices[:,pos])-start
+    
+    for i in np.where(label_vertex)[0]:
+        current_vertex_position=pos_vertices[i,pos]
+        value=start+(current_vertex_position-start)/L
+        bc_uid=np.append(bc_uid, i)
+        bc_value=np.append(bc_value, value)
+        
+    return bc_uid, bc_value
+        
+    
+    
 class flow():
     """This class acts as a flow solver, if the veocities (or flow) are imported from another simulation
     this class is not neccesary"""    
