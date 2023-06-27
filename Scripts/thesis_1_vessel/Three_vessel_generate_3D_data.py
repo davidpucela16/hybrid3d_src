@@ -131,25 +131,38 @@ var=False
 prob.phi_bar_bool=var
 prob.B_assembly_bool=var
 prob.I_assembly_bool=var
-prob.AssemblyProblem(path_kk2)
-prob.Full_ind_array[:prob.F]-=M*mesh.h**3
+#True if no need to compute
+phi_bar_bool=os.path.exists(os.path.join(path_matrices, 'phi_bar_q.npz')) and os.path.exists(os.path.join(path_matrices, 'phi_bar_s.npz')) 
+B_assembly_bool=os.path.exists(os.path.join(path_matrices, 'B_matrix.npz'))
+I_assembly_bool=os.path.exists(os.path.join(path_matrices, 'I_matrix.npz'))
+prob.phi_bar_bool=phi_bar_bool
+prob.B_assembly_bool=B_assembly_bool
+prob.I_assembly_bool=I_assembly_bool
 
-###################################################################
-# PROBLEM - Cyl
-####################################################################
-#Create the object for the analytical potentials
-P=Classic(3*L_vessel, R_vessel)
-G_ij=P.get_single_layer_vessel(len(net.pos_s))/2/np.pi/R_vessel
-#The factor 2*np.pi*R_vessel arises because we consider q as the total flux and not the point gradient of concentration
-new_E_matrix=G_ij+prob.q_portion
-prob.E_matrix=new_E_matrix
-Exact_full_linear=prob.ReAssemblyMatrices() 
-sol_cyl=dir_solve(Exact_full_linear, -prob.Full_ind_array)
+rec_bool=False
+Computation_bool= not os.path.exists(os.path.join(path_matrices, "sol_cyl.npy"))
+
+if Computation_bool:
+    prob.AssemblyProblem(path_kk2)
+    prob.Full_ind_array[:prob.F]-=M*mesh.h**3
+    ###################################################################
+    # PROBLEM - Cyl
+    ####################################################################
+    #Create the object for the analytical potentials
+    P=Classic(3*L_vessel, R_vessel)
+    G_ij=P.get_single_layer_vessel(len(net.pos_s))/2/np.pi/R_vessel
+    #The factor 2*np.pi*R_vessel arises because we consider q as the total flux and not the point gradient of concentration
+    new_E_matrix=G_ij+prob.q_portion
+    prob.E_matrix=new_E_matrix
+    Exact_full_linear=prob.ReAssemblyMatrices() 
+    sol_cyl=dir_solve(Exact_full_linear, -prob.Full_ind_array)
+    np.save(path_matrices + "/sol_cyl", sol_cyl)
+else:
+    sol_cyl=np.load(path_matrices + "/sol_cyl.npy")
+
 prob.s=sol_cyl[:-2*prob.S]
 prob.q=sol_cyl[-prob.S*2:-prob.S]
 prob.Cv=sol_cyl[-prob.S:]
-
-
 #%% - Write .am field
 
 title="\n@1 # VertexCoordinates"
@@ -160,7 +173,7 @@ np.savetxt(os.path.join(path_output, "EdgeConnectivity.txt"), np.vstack((startVe
 
 from PrePostTemp import VisualizationTool
 res=100
-num_processes=10
+num_processes=30
 process=0 #This must be kept to zero for the parallel reconstruction to go right
 perp_axis_res=res*3
 path_vol_data=os.path.join(path_output, "vol_data")
@@ -169,50 +182,52 @@ shrink_factor=((cells_3D-1)/cells_3D)
 
 #%%
 corners_2D=np.array([[0,0],[0,1],[1,0],[1,1]])*L_3D[0]*shrink_factor+L_3D[0]*(1/cells_3D/2)
-
-aaz=VisualizationTool(prob, 2,0,1, corners_2D, res)
-shrink_factor_perp=((mesh.cells[2]-1)/mesh.cells[2])
-aaz.GetVolumeData(num_processes, process, perp_axis_res, path_vol_data, shrink_factor_perp)
+if rec_bool:
+    aaz=VisualizationTool(prob, 2,0,1, corners_2D, res)
+    shrink_factor_perp=((mesh.cells[2]-1)/mesh.cells[2])
+    aaz.GetVolumeData(num_processes, process, perp_axis_res, path_vol_data, shrink_factor_perp)
 
 #%%
 from PrePostTemp import GetPointsAM, GetConcentrationAM, GetConcentrationVertices
 
-def GetPointsAM(edges, pos_vertex, pos_s, cells_1D):
-    points_array=np.zeros(((0,3)), dtype=np.float64)
-    ed=-1
-    for i in edges:
-        ed+=1
-        init_pos=np.sum(cells_1D[:ed])
-        end_pos=np.sum(cells_1D[:ed+1])
-        local_arr=np.vstack((pos_vertex[i[0]], pos_s[init_pos:end_pos],pos_vertex[i[1]]))
-        points_array=np.vstack((points_array, local_arr))
-    return points_array
-
-def GetConcentrationAM(edges, pos_vertex, pos_s, cells_1D, Cv):
-    points_array=np.zeros(0, dtype=np.float64)
-    ed=-1
-    for i in edges:
-        ed+=1
-        init_pos=np.sum(cells_1D[:ed])
-        end_pos=np.sum(cells_1D[:ed+1])
-        local_arr=np.vstack((pos_vertex[i[0]], pos_s[init_pos:end_pos],pos_vertex[i[1]]))
-        points_array=np.vstack((points_array, local_arr))
-    return points_array
-
-from PrePostTemp import GetSingleEdgeSources
-def GetConcentrationVertices(vertex_to_edge, starVertex, cells_per_segment):
-    value_array=np.zeros(0)
-    for i in range(len(pos_vertex)):
-        for ed in vertex_to_edge[i]:
-            value=0
-            sources=GetSingleEdgeSources(cells_per_segment,  ed)
-            if startVertex[ed]==i:
-                value+=sources[0]
-            else:
-                value+=sources[-1]
-        value/=len(vertex_to_edge[i])
-        value_array=np.append(value_array, value)
-    return value_array
+# =============================================================================
+# def GetPointsAM(edges, pos_vertex, pos_s, cells_1D):
+#     points_array=np.zeros(((0,3)), dtype=np.float64)
+#     ed=-1
+#     for i in edges:
+#         ed+=1
+#         init_pos=np.sum(cells_1D[:ed])
+#         end_pos=np.sum(cells_1D[:ed+1])
+#         local_arr=np.vstack((pos_vertex[i[0]], pos_s[init_pos:end_pos],pos_vertex[i[1]]))
+#         points_array=np.vstack((points_array, local_arr))
+#     return points_array
+# 
+# def GetConcentrationAM(edges, pos_vertex, pos_s, cells_1D, Cv):
+#     points_array=np.zeros(0, dtype=np.float64)
+#     ed=-1
+#     for i in edges:
+#         ed+=1
+#         init_pos=np.sum(cells_1D[:ed])
+#         end_pos=np.sum(cells_1D[:ed+1])
+#         local_arr=np.vstack((pos_vertex[i[0]], pos_s[init_pos:end_pos],pos_vertex[i[1]]))
+#         points_array=np.vstack((points_array, local_arr))
+#     return points_array
+# 
+# from PrePostTemp import GetSingleEdgeSources
+# def GetConcentrationVertices(vertex_to_edge, starVertex, cells_per_segment):
+#     value_array=np.zeros(0)
+#     for i in range(len(pos_vertex)):
+#         for ed in vertex_to_edge[i]:
+#             value=0
+#             sources=GetSingleEdgeSources(cells_per_segment,  ed)
+#             if startVertex[ed]==i:
+#                 value+=sources[0]
+#             else:
+#                 value+=sources[-1]
+#         value/=len(vertex_to_edge[i])
+#         value_array=np.append(value_array, value)
+#     return value_array
+# =============================================================================
 
 
 edges=np.array([startVertex, endVertex]).T

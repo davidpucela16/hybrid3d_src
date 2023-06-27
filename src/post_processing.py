@@ -39,8 +39,6 @@ from numba import int64, types, typed
 import numba as nb
 import matplotlib.pylab as pylab
 
-import dask
-from dask import delayed
 
 plt.style.use('default')
 params = {'legend.fontsize': 'x-large',
@@ -115,14 +113,6 @@ def InterpolateHelper(args):
     prob,coords=args
     a,b,c,d = prob.Interpolate(coords)
     return a.dot(prob.s[b]) + c.dot(prob.q[d]) 
-
-@dask.delayed
-def InterpolateHelperDask(args):
-    prob,coords=args
-    a,b,c,d = prob.Interpolate(coords)
-    return a.dot(prob.s[b]) + c.dot(prob.q[d]) 
-
-
 
 #%% - The following functions are written more calmly and will probably substitute many of the functions above
 def GetPlaneReconstructionFast(plane_coord,plane_axis, i_axis, j_axis,corners, resolution, prob, property_array, *save):

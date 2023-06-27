@@ -12,12 +12,10 @@ from post_processing import ReconstructionCoordinatesFast, GetPlaneReconstructio
 from neighbourhood import GetNeighbourhood
 from mesh_1D import SimpsonVolume
 import matplotlib.pyplot as plt
-from dask import delayed
 from numba import njit
 import pdb
 from scipy.sparse import csc_matrix
 
-from dask.distributed import Client, LocalCluster
 
 def SplitFile(filename, output_dir_network):
     with open(filename, 'r') as file:

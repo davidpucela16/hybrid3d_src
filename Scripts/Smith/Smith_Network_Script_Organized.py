@@ -333,7 +333,7 @@ cbar_ax.set_position([0.83, 0.15, 0.03, 0.7])  # Adjust the position as needed
 plt.show()
 
 #%%
-res=40
+res=100
 
 corners=np.array([[0,0],[0,L_3D[0]],[L_3D[0],0],[L_3D[0],L_3D[0]]])*shrink_factor + L_3D[0]*(1-shrink_factor)/2
 if simple_plotting:    
@@ -395,7 +395,7 @@ points_position=GetPointsAM(edges, pos_vertex, net.pos_s, net.cells)
 title="@11 # points"
 np.savetxt(os.path.join(path_matrices, "Points.txt"), points_position, fmt='%f', delimiter=' ', header=title, comments='')
 
-vertices_concentration=GetConcentrationVertices(vertex_to_edge, startVertex, net.cells)
+vertices_concentration=GetConcentrationVertices(vertex_to_edge, startVertex, net.cells, prob.Cv)
 title="@12 # vertices concentration"
 np.savetxt(os.path.join(path_matrices, "vertices_concentration.txt"), vertices_concentration, fmt='%f', delimiter=' ', header=title, comments='')
 
