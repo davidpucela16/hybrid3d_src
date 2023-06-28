@@ -30,7 +30,6 @@ class mesh_1D():
         self.D=D
         L=np.sum((pos_vertex[endVertex] - pos_vertex[startVertex])**2, axis=1)**0.5
         self.L=L
-        
         h=self.CalculateDiscretizatinSize(h_approx)
         self.tau=np.divide((pos_vertex[endVertex] - pos_vertex[startVertex]).T,L).T
         self.edges=np.arange(len(startVertex)) #Total number of edges in the network
@@ -41,6 +40,7 @@ class mesh_1D():
         self.vertex_to_edge=vertex_to_edge
         pos_s=np.zeros((0,3))
         self.source_edge=np.array([], dtype=int) #Array that returns for each cyl source the edge it lies in
+        
         for i in self.edges:
             local=np.linspace(h[i]/2, L[i]-h[i]/2, int(L[i]/h[i]))
             glob=np.multiply.outer(local, self.tau[i])+pos_vertex[startVertex[i]]

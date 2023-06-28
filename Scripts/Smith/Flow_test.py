@@ -5,6 +5,7 @@ Created on Tue May 23 18:04:46 2023
 
 @author: pdavid
 """
+
 # Constants
 factor_flow=1
 factor_K=1
@@ -28,8 +29,8 @@ sys.path.append(path_src)
 sys.path.append(path_potentials)
 
 #Network
-path_network=os.path.join(path_src, "../../networks/Synthetic_960")
-filename=os.path.join(path_network,"Lc=75_facearea=75_min_dist=2.5_use_data=0_Rea{}_synthetic_network.Smt.SptGraph.am".format(Network))
+path_network=os.path.join(path_src, "../../networks/Synthetic_ROIs_300x300x300")
+filename=os.path.join(path_network,"Rea{}_synthetic_{}.Smt.SptGraph.am".format(Network, gradient))
 
 #Not used for now, but it will come in handy
 path_thesis = os.path.join(path_src, '../../path_thesis/' + name_script)
@@ -69,8 +70,8 @@ I_assembly_bool=os.path.exists(os.path.join(path_matrices, 'I_matrix.npz'))
 Computation_Si_V=os.path.exists(os.path.join(path_matrices, 'Si_V.npz'))
 Computation_bool= not os.path.exists(os.path.join(path_matrices, 'sol.npy'))
 rec_bool=False
-simple_plotting=False
-Uncoupled=True
+simple_plotting=True
+Constant_Cv=False
 already_loaded=False
 linear_consumption=True
 # =============================================================================
@@ -156,23 +157,52 @@ df = pd.read_csv(path_am + '/output_4.txt', skiprows=1, sep="\s+", names=["lengt
 with open(path_am + '/output_4.txt', 'r') as file:
     # Read the first line
     output_four= file.readline()
-diameters_points=np.ndarray.flatten(df.values)
+diameters=np.ndarray.flatten(df.values)
 
-diameters=diameters_points[np.arange(len(edges))*2]
-#%%
+diameters=diameters[np.arange(len(edges))*2]
+
+df = pd.read_csv(path_am + '/output_5.txt', skiprows=1, sep="\s+", names=["flow_rate"])
+with open(path_am + '/output_5.txt', 'r') as file:
+    # Read the first line
+    output_five= file.readline()
+Pressure=np.ndarray.flatten(df.values)
+
+df = pd.read_csv(path_am + '/output_6.txt', skiprows=1, sep="\s+", names=["flow_rate"])
+with open(path_am + '/output_6.txt', 'r') as file:
+    # Read the first line
+    output_six= file.readline()
+
 #I increase the Pe because it is way too slow
 Flow_rate=np.ndarray.flatten(df.values)*factor_flow
 
+
 K=np.average(diameters)/np.ndarray.flatten(diameters)*factor_K
 #The flow rate is given in nl/s
-U = 4*Flow_rate/np.pi/diameters_points**2*1e9*factor_flow #To convert to speed in micrometer/second
+U = 4*Flow_rate/np.pi/diameters**2*1e9*factor_flow #To convert to speed in micrometer/second
 
 startVertex=edges[:,0].copy()
 endVertex=edges[:,1].copy()
 vertex_to_edge=AssembleVertexToEdge(pos_vertex, edges)
 
-#%% - Flow
 
+########################################################################
+#   THIS IS A CRUCIAL OPERATION
+########################################################################
+print("Modifying edges according to pressure gradient")
+for i in range(len(edges)):
+    gradient=Pressure[2*i+1] - Pressure[2*i]
+    
+    if gradient<0:
+        #print("Modifying edge ", i)
+        edges[i,0]=endVertex[i]
+        edges[i,1]=startVertex[i]    
+    
+startVertex=edges[:,0]
+endVertex=edges[:,1]
+
+CheckLocalConservativenessFlowRate(startVertex,endVertex, vertex_to_edge, Flow_rate)
+
+#%%
 L=np.sum((pos_vertex[endVertex] - pos_vertex[startVertex])**2, axis=1)**0.5
 
 from assembly_1D import flow, AssignFlowBC
@@ -185,24 +215,9 @@ F=flow( bc_uid, bc_value, L, diameters, startVertex, endVertex)
 F.solver()
 Pressure=dir_solve(F.A, F.P)
 uu=F.get_U()
-Flow_rate=uu*np.pi*diameters**2/4
-########################################################################
-#   THIS IS A CRUCIAL OPERATION
-########################################################################
-print("Modifying edges according to pressure gradient")
-for i in range(len(edges)):
-    if Pressure[endVertex[i]] - Pressure[startVertex[i]]:
-        #print("Modifying edge ", i)
-        edges[i,0]=endVertex[i]
-        edges[i,1]=startVertex[i]    
-    
-startVertex=edges[:,0]
-endVertex=edges[:,1]
-
-CheckLocalConservativenessFlowRate(startVertex,endVertex, vertex_to_edge, uu)
 
 #%% - Creation of the 3D and Network objects
-L_3D=np.max(pos_vertex, axis=0) - np.min(pos_vertex, axis=0)
+L_3D=np.array([300,300,300])
 
 #Set artificial BCs for the network 
 BCs_1D=SetArtificialBCs(vertex_to_edge, 1,0, startVertex, endVertex)
@@ -211,9 +226,9 @@ BCs_1D=SetArtificialBCs(vertex_to_edge, 1,0, startVertex, endVertex)
 #BC_type=np.array(["Dirichlet","Dirichlet","Dirichlet","Dirichlet","Dirichlet","Dirichlet"])
 BC_type=np.array(["Neumann", "Neumann", "Neumann","Neumann","Neumann","Neumann"])
 BC_value=np.array([0,0,0,0,0,0])
-from mesh_1D import mesh_1D
-net=mesh_1D( startVertex, endVertex, vertex_to_edge ,pos_vertex, diameters, np.average(diameters)/2,np.average(uu))
-net.U=np.ndarray.flatten(U)
+
+net=mesh_1D( startVertex, endVertex, vertex_to_edge ,pos_vertex, diameters, np.average(diameters)/2,np.average(U))
+net.U=np.ndarray.flatten(uu)
 
 mesh=cart_mesh_3D(L_3D,cells_3D)
 net.PositionalArraysFast(mesh)
@@ -246,46 +261,51 @@ else:
     Si_V=sp.sparse.load_npz(os.path.join(path_matrices, 'Si_V.npz'))
 
 
+
 #%%
 if Computation_bool:
     if not already_loaded:
         prob.AssemblyProblem(path_matrices)
         A=prob.Full_linear_matrix
         #M_D=0.001
-        
         Real_diff=1.2e5 #\mu m^2 / min
         CMRO2=Real_diff * M_D
         b=prob.Full_ind_array.copy()
-        b[:prob.F]-=M_D*mesh.h**3
+        if not linear_consumption:
+            
+            b[:prob.F]-=M_D*mesh.h**3
+        else:
+            orig_A=prob.A_matrix.copy()
+            orig_B=prob.B_matrix.copy()
+            
+            prob.A_matrix-=sp.sparse.diags(np.ones(prob.F), 0)*M_D*mesh.h**3
+            prob.B_matrix-=Si_V*M_D*mesh.h**3
+            
+            A=prob.ReAssemblyMatrices()
+            
+            prob.A_matrix=orig_A.copy()
+            prob.B_matrix=orig_B.copy()
+            
         print("If all BCs are newton the sum of all coefficients divided by the length of the network should be close to 1", np.sum(prob.B_matrix.toarray())/np.sum(net.L))
         plt.spy(prob.Full_linear_matrix)
         already_loaded=True
     #
-    if Uncoupled:
-        #Linear Cv decay
-        pos_gradient=np.where(np.array(['x', 'y', 'z'])==gradient)[0][0]
-        Cv=(L[pos_gradient]-net.pos_s[:,pos_gradient])/L[pos_gradient]
-        
+    if Constant_Cv:
+        #Constant Cv
         Lin_matrix=prob.Full_linear_matrix.tolil()[:prob.F+prob.S,:prob.F+prob.S]
         ind_array=b[:prob.F+prob.S]
-        ind_array[-prob.S:]+=prob.F_matrix.dot(Cv)
+        ind_array[-prob.S:]+=prob.F_matrix.dot(np.ones(prob.S))
         sol=dir_solve(Lin_matrix,-ind_array)
         pdb.set_trace()
         sol=np.concatenate((sol, np.ones(prob.S)))
     else:
         #sol=dir_solve(prob.Full_linear_matrix,-prob.Full_ind_array)
-        start=time.time()
-        aa=GetInitialGuess(np.ones(len(edges)), prob)
-        end=time.time()
-        print("time= ", end-start)
-        sol=np.concatenate((aa[0], aa[1], aa[2]))
-        pdb.set_trace()
         sol = dir_solve(A, -b)
-        np.save(os.path.join(path_output_data, 'sol'),sol)
+        np.save(os.path.join(path_matrices, 'sol'),sol)
 
 
 #%%
-#sol=np.load(os.path.join(path_output_data, 'sol.npy'))
+sol=np.load(os.path.join(path_matrices, 'sol.npy'))
 prob.q=sol[prob.F:prob.F+prob.S]
 prob.s=sol[:prob.F]
 prob.Cv=sol[-prob.S:]
@@ -298,33 +318,35 @@ prob.Cv=sol[-prob.S:]
 #Test Conservativeness!!!!
 CMRO2_tot=M_D*mesh.h**3*cells_3D**3
 exchanges=np.dot(prob.q, np.repeat(net.h, net.cells))
-
-print("Unconserved mass error: ", np.abs(exchanges-CMRO2_tot)/CMRO2_tot)
-
+phi_coarse=prob.s+Si_V.dot(prob.q)
+if not linear_consumption:
+    print("Unconserved mass error: ", np.abs(exchanges-CMRO2_tot)/CMRO2_tot)
+else:
+    print("Unconserved mass error: ", np.abs(exchanges-np.sum(M_D*mesh.h**3*phi_coarse))/np.sum(M_D*mesh.h**3*phi_coarse))
 prob_args=GetProbArgs(prob)
 
-phi_coarse=prob.s+Si_V.dot(prob.q)
 vmin=np.min(phi_coarse)
 vmax=np.max(phi_coarse)
 
-fig, axs = plt.subplots(2, 2, figsize=(30,16))
-im1 = axs[0, 0].imshow(phi_coarse[mesh.GetXSlice(L_3D[0]/5)].reshape(cells_3D, cells_3D), cmap='jet', vmin=vmin, vmax=vmax)
-im2 = axs[0, 1].imshow(phi_coarse[mesh.GetXSlice(L_3D[0]/5*2)].reshape(cells_3D, cells_3D), cmap='jet', vmin=vmin, vmax=vmax)
-im3 = axs[1, 0].imshow(phi_coarse[mesh.GetXSlice(L_3D[0]/5*3)].reshape(cells_3D, cells_3D), cmap='jet', vmin=vmin, vmax=vmax)
-im4 = axs[1, 1].imshow(phi_coarse[mesh.GetXSlice(L_3D[0]/5*4)].reshape(cells_3D, cells_3D), cmap='jet', vmin=vmin, vmax=vmax)
-# Adjust spacing between subplots
-fig.tight_layout()
-
-# Move the colorbar to the right of the subplots
-cbar = fig.colorbar(im1, ax=axs, orientation='vertical', shrink=0.8)
-cbar_ax = cbar.ax
-cbar_ax.set_position([0.83, 0.15, 0.03, 0.7])  # Adjust the position as needed
-
-# Show the plot
-plt.show()
+if simple_plotting:
+    fig, axs = plt.subplots(2, 2, figsize=(30,16))
+    im1 = axs[0, 0].imshow(phi_coarse[mesh.GetXSlice(L_3D[0]/5)].reshape(cells_3D, cells_3D), cmap='jet', vmin=vmin, vmax=vmax)
+    im2 = axs[0, 1].imshow(phi_coarse[mesh.GetXSlice(L_3D[0]/5*2)].reshape(cells_3D, cells_3D), cmap='jet', vmin=vmin, vmax=vmax)
+    im3 = axs[1, 0].imshow(phi_coarse[mesh.GetXSlice(L_3D[0]/5*3)].reshape(cells_3D, cells_3D), cmap='jet', vmin=vmin, vmax=vmax)
+    im4 = axs[1, 1].imshow(phi_coarse[mesh.GetXSlice(L_3D[0]/5*4)].reshape(cells_3D, cells_3D), cmap='jet', vmin=vmin, vmax=vmax)
+    # Adjust spacing between subplots
+    fig.tight_layout()
+    
+    # Move the colorbar to the right of the subplots
+    cbar = fig.colorbar(im1, ax=axs, orientation='vertical', shrink=0.8)
+    cbar_ax = cbar.ax
+    cbar_ax.set_position([0.83, 0.15, 0.03, 0.7])  # Adjust the position as needed
+    
+    # Show the plot
+    plt.show()
 
 #%%
-res=40
+res=50
 
 corners=np.array([[0,0],[0,L_3D[0]],[L_3D[0],0],[L_3D[0],L_3D[0]]])*shrink_factor + L_3D[0]*(1-shrink_factor)/2
 if simple_plotting:    
@@ -335,10 +357,10 @@ if simple_plotting:
     aay=VisualizationTool(prob, 1,0,2, corners, res)
     aay.GetPlaneData(path_output_data)
     aay.PlotData(path_output_data)
-    aaz=VisualizationTool(prob, 2,0,1, corners, res)
-    aaz.GetPlaneData(path_output_data)
-    aaz.PlotData(path_output_data)
 # =============================================================================
+#     aaz=VisualizationTool(prob, 2,0,1, corners, res)
+#     aaz.GetPlaneData(path_output_data)
+#     aaz.PlotData(path_output_data)
 #     aaz=VisualizationTool(prob, 2,1,0, corners, res)
 #     aaz.GetPlaneData(path_output_data)
 #     aaz.PlotData(path_output_data)
@@ -355,7 +377,6 @@ if rec_bool:
     aaz=VisualizationTool(prob, 2,0,1, np.array([[16,16],[16,289],[289,16],[289,289]]), res)
     aaz.GetVolumeData(num_processes, process, perp_axis_res, path_vol_data, shrink_factor)
 
-phi_coarse=GetCoarsePhi(prob, prob.q, prob.Cv, prob.s)
 
 #%% - Data for Avizo
 from PrePostTemp import GetEdgesConcentration,GetSingleEdgeSources, GetEdgesConcentration, LabelVertexEdge
@@ -363,22 +384,43 @@ from PrePostTemp import GetEdgesConcentration,GetSingleEdgeSources, GetEdgesConc
 edges_concentration=GetEdgesConcentration(net.cells, prob.Cv)
 vertex_label, edge_label=LabelVertexEdge(vertex_to_edge, startVertex)
 title="@8 # Edge Concentration"
-np.savetxt(os.path.join(path_matrices, "Edge_concentration.txt"), edges_concentration, fmt='%f', delimiter=' ', header=title, comments='')
+np.savetxt(os.path.join(path_am, "Edge_concentration.txt"), edges_concentration, fmt='%f', delimiter=' ', header=title, comments='')
 title="@9 # Entry Exit"
-np.savetxt(os.path.join(path_matrices, "Entry_Exit.txt"), vertex_label, fmt='%d', delimiter=' ', header=title, comments='')
+np.savetxt(os.path.join(path_am, "Entry_Exit.txt"), vertex_label, fmt='%d', delimiter=' ', header=title, comments='')
 
 title="@10 # Entry Exit Edge"
-np.savetxt(os.path.join(path_matrices, "Entry_Exit_Edge.txt"), vertex_label, fmt='%d', delimiter=' ', header=title, comments='')
+np.savetxt(os.path.join(path_am, "Entry_Exit_Edge.txt"), edge_label, fmt='%d', delimiter=' ', header=title, comments='')
+
+
+if simple_plotting:
+    fig, axs = plt.subplots(1, 2, figsize=(30,16))
+    for i in np.where(edge_label==1)[0][:]: #1 if entering, 2 if exiting
+        #plt.plot(GetSingleEdgeConc(net.cells, prob.Cv, i))
+        im1 = axs[0].plot(prob.Cv[GetSingleEdgeSources(net.cells, i)])
+        #plt.plot(np.zeros(net.cells[i])+ edges_concentration[i])
+        axs[0].set_title("Entering")
+    for i in np.where(edge_label==2)[0][:]:
+        im2 = axs[1].plot(prob.Cv[GetSingleEdgeSources(net.cells, i)])
+        axs[1].set_title("Exiting")
+    fig.tight_layout()
+    plt.show()
 
 #%%
-#def GetVertexConc(vertex_to_edge, startVertex, )
 
-for i in np.where(edge_label==1)[0][:]: #1 if entering, 2 if exiting
-    #plt.plot(GetSingleEdgeConc(net.cells, prob.Cv, i))
-    plt.plot(prob.Cv[GetSingleEdgeSources(net.cells, i)])
-    plt.plot(np.zeros(net.cells[i])+ edges_concentration[i])
-    #plt.ylim((0.98,1))
-#plt.show()
+from PrePostTemp import GetPointsAM, GetConcentrationAM, GetConcentrationVertices
+
+
+points_position=GetPointsAM(edges, pos_vertex, net.pos_s, net.cells)
+title="@11 # points"
+np.savetxt(os.path.join(path_am, "Points.txt"), points_position, fmt='%f', delimiter=' ', header=title, comments='')
+
+vertices_concentration=GetConcentrationVertices(vertex_to_edge, startVertex, net.cells, prob.Cv)
+title="@12 # vertices concentration"
+np.savetxt(os.path.join(path_am, "vertices_concentration.txt"), vertices_concentration, fmt='%f', delimiter=' ', header=title, comments='')
+
+points_concentration=GetConcentrationAM(edges, vertices_concentration, prob.Cv, net.cells)
+title="@13 # concentration points"
+np.savetxt(os.path.join(path_am, "Points.txt"), points_concentration, fmt='%f', delimiter=' ', header=title, comments='')
 
 
 #%% - To calculate different PDFs
@@ -394,13 +436,13 @@ average_phi = []
 for pos in unique_x:
     mask = np.abs(net.pos_s[:,0] - pos) <= h
     average_phi.append(np.mean(prob.Cv[mask]))
-
-# Plotting the average concentration
-plt.plot(unique_x, average_phi)
-plt.xlabel('Position')
-plt.ylabel('Average Concentration')
-plt.title('Average Concentration vs Position (within distance h)')
-#plt.show()
+if simple_plotting:
+    # Plotting the average concentration
+    plt.plot(unique_x, average_phi)
+    plt.xlabel('Position')
+    plt.ylabel('Average Concentration')
+    plt.title('Average Concentration vs Position (within distance h)')
+    plt.show()
 #%%
 
 # Assuming you have the arrays phi and x defined
@@ -414,10 +456,10 @@ average_phi = []
 for pos in unique_x:
     mask = np.abs(net.pos_s[:,0] - pos) <= h
     average_phi.append(np.sum(mask))
-
-# Plotting the average concentration
-plt.plot(unique_x, average_phi)
-plt.xlabel('Position')
-plt.ylabel('Average Concentration')
-plt.title('Average Concentration vs Position (within distance h)')
-#plt.show()
+if simple_plotting:
+    # Plotting the average concentration
+    plt.plot(unique_x, average_phi)
+    plt.xlabel('Position')
+    plt.ylabel('Average Concentration')
+    plt.title('Average Concentration vs Position (within distance h)')
+    plt.show()

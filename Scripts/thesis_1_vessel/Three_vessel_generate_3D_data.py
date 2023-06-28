@@ -20,7 +20,6 @@ path_potentials=os.path.join(path_script, '../../Potentials')
 path_matrices=os.path.join(path_src, '../../linear_system/' + name_script)
 path_output=os.path.join(path_src, '../../output_figures/' + name_script)
 path_phi_bar=os.path.join(path_matrices, 'path_phi_bar')
-path_thesis=os.path.join(path_src, '../../path_thesis/' + name_script)
 
 os.makedirs(path_phi_bar, exist_ok=True)
 os.makedirs(path_matrices, exist_ok=True)

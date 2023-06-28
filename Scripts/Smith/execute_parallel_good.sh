@@ -5,12 +5,10 @@
 script_orig=$1
 num_scripts=$(grep -oP 'num_processes=\K\d+' $script_orig)
 
+sed -i 's/simple_plotting=True/simple_plotting=False/' $script_orig
+
 python "$script_orig"
 wait $!
-
-
-sed -i 's/Computation_bool=True/Computation_bool=False/' $script_orig
-sed -i 's/simple_plotting=True/simple_plotting=False/' $script_orig
 
 script_name="${script_orig%.py}"
 
@@ -18,7 +16,8 @@ cp $script_orig rec_0_backup.py
 
 back_up="rec_0_backup.py"
 
-# Find the line starting with "kk" in the Python script
+sed -i 's/Computation_bool=True/Computation_bool=False/' $back_up
+
 line_number=$(grep -n "^name_script" "$back_up" | cut -d ":" -f 1)
 
 # Construct the variable assignment line

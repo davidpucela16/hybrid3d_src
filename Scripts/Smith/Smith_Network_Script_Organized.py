@@ -70,14 +70,18 @@ I_assembly_bool=os.path.exists(os.path.join(path_matrices, 'I_matrix.npz'))
 Computation_Si_V=os.path.exists(os.path.join(path_matrices, 'Si_V.npz'))
 Computation_bool= not os.path.exists(os.path.join(path_matrices, 'sol.npy'))
 rec_bool=False
-simple_plotting=True
+simple_plotting=False
 Constant_Cv=False
 already_loaded=False
-
 linear_consumption=True
-phi_bar_bool=False
-I_assembly_bool=False
 Computation_bool=True
+# =============================================================================
+# #When changing flow and consumption, change the following:
+# 
+# phi_bar_bool=False
+# I_assembly_bool=False
+# Computation_bool=False
+# =============================================================================
 #%%%%%%%%%%%%%
 
 import pandas as pd
@@ -301,42 +305,42 @@ prob.Cv=sol[-prob.S:]
 #Test Conservativeness!!!!
 CMRO2_tot=M_D*mesh.h**3*cells_3D**3
 exchanges=np.dot(prob.q, np.repeat(net.h, net.cells))
-
-print("Unconserved mass error: ", np.abs(exchanges-CMRO2_tot)/CMRO2_tot)
-
+phi_coarse=prob.s+Si_V.dot(prob.q)
+if not linear_consumption:
+    print("Unconserved mass error: ", np.abs(exchanges-CMRO2_tot)/CMRO2_tot)
+else:
+    print("Unconserved mass error: ", np.abs(exchanges-np.sum(M_D*mesh.h**3*phi_coarse))/np.sum(M_D*mesh.h**3*phi_coarse))
 prob_args=GetProbArgs(prob)
 
-phi_coarse=prob.s+Si_V.dot(prob.q)
 vmin=np.min(phi_coarse)
 vmax=np.max(phi_coarse)
 
-fig, axs = plt.subplots(2, 2, figsize=(30,16))
-im1 = axs[0, 0].imshow(phi_coarse[mesh.GetXSlice(L_3D[0]/5)].reshape(cells_3D, cells_3D), cmap='jet', vmin=vmin, vmax=vmax)
-im2 = axs[0, 1].imshow(phi_coarse[mesh.GetXSlice(L_3D[0]/5*2)].reshape(cells_3D, cells_3D), cmap='jet', vmin=vmin, vmax=vmax)
-im3 = axs[1, 0].imshow(phi_coarse[mesh.GetXSlice(L_3D[0]/5*3)].reshape(cells_3D, cells_3D), cmap='jet', vmin=vmin, vmax=vmax)
-im4 = axs[1, 1].imshow(phi_coarse[mesh.GetXSlice(L_3D[0]/5*4)].reshape(cells_3D, cells_3D), cmap='jet', vmin=vmin, vmax=vmax)
-# Adjust spacing between subplots
-fig.tight_layout()
-
-# Move the colorbar to the right of the subplots
-cbar = fig.colorbar(im1, ax=axs, orientation='vertical', shrink=0.8)
-cbar_ax = cbar.ax
-cbar_ax.set_position([0.83, 0.15, 0.03, 0.7])  # Adjust the position as needed
-
-# Show the plot
-plt.show()
+if simple_plotting:
+    fig, axs = plt.subplots(2, 2, figsize=(30,16))
+    im1 = axs[0, 0].imshow(phi_coarse[mesh.GetXSlice(L_3D[0]/5)].reshape(cells_3D, cells_3D), cmap='jet', vmin=vmin, vmax=vmax)
+    im2 = axs[0, 1].imshow(phi_coarse[mesh.GetXSlice(L_3D[0]/5*2)].reshape(cells_3D, cells_3D), cmap='jet', vmin=vmin, vmax=vmax)
+    im3 = axs[1, 0].imshow(phi_coarse[mesh.GetXSlice(L_3D[0]/5*3)].reshape(cells_3D, cells_3D), cmap='jet', vmin=vmin, vmax=vmax)
+    im4 = axs[1, 1].imshow(phi_coarse[mesh.GetXSlice(L_3D[0]/5*4)].reshape(cells_3D, cells_3D), cmap='jet', vmin=vmin, vmax=vmax)
+    # Adjust spacing between subplots
+    fig.tight_layout()
+    
+    # Move the colorbar to the right of the subplots
+    cbar = fig.colorbar(im1, ax=axs, orientation='vertical', shrink=0.8)
+    cbar_ax = cbar.ax
+    cbar_ax.set_position([0.83, 0.15, 0.03, 0.7])  # Adjust the position as needed
+    
+    # Show the plot
+    plt.show()
 
 #%%
-res=40
+res=30
 
 corners=np.array([[0,0],[0,L_3D[0]],[L_3D[0],0],[L_3D[0],L_3D[0]]])*shrink_factor + L_3D[0]*(1-shrink_factor)/2
 if simple_plotting:    
     
-# =============================================================================
-#     aax=VisualizationTool(prob, 0,1,2, corners, res)
-#     aax.GetPlaneData(path_output_data)
-#     aax.PlotData(path_output_data)
-# =============================================================================
+    aax=VisualizationTool(prob, 0,1,2, corners, res)
+    aax.GetPlaneData(path_output_data)
+    aax.PlotData(path_output_data)
     aay=VisualizationTool(prob, 1,0,2, corners, res)
     aay.GetPlaneData(path_output_data)
     aay.PlotData(path_output_data)
@@ -353,7 +357,7 @@ if simple_plotting:
 # =============================================================================
 
 if rec_bool:
-    num_processes=1
+    num_processes=10
     process=0 #This must be kept to zero for the parallel reconstruction to go right
     perp_axis_res=res
     path_vol_data=os.path.join(path_output_data, "vol_data")
@@ -363,41 +367,48 @@ if rec_bool:
 
 #%% - Data for Avizo
 from PrePostTemp import GetEdgesConcentration,GetSingleEdgeSources, GetEdgesConcentration, LabelVertexEdge
+from PrePostTemp import GetPointsAM, GetConcentrationAM, GetConcentrationVertices
 
 edges_concentration=GetEdgesConcentration(net.cells, prob.Cv)
 vertex_label, edge_label=LabelVertexEdge(vertex_to_edge, startVertex)
-title="@8 # Edge Concentration"
-np.savetxt(os.path.join(path_am, "Edge_concentration.txt"), edges_concentration, fmt='%f', delimiter=' ', header=title, comments='')
-title="@9 # Entry Exit"
-np.savetxt(os.path.join(path_am, "Entry_Exit.txt"), vertex_label, fmt='%d', delimiter=' ', header=title, comments='')
+title="@8 # EdgeConcentration"
+np.savetxt(os.path.join(path_am, "EdgeConcentration.txt"), edges_concentration, fmt='%f', delimiter=' ', header=title, comments='')
+title="@9 # EntryExitVertex"
+np.savetxt(os.path.join(path_am, "EntryExitVertex.txt"), vertex_label, fmt='%d', delimiter=' ', header=title, comments='')
 
-title="@10 # Entry Exit Edge"
-np.savetxt(os.path.join(path_am, "Entry_Exit_Edge.txt"), edge_label, fmt='%d', delimiter=' ', header=title, comments='')
+title="@10 # EntryExitEdge"
+np.savetxt(os.path.join(path_am, "EntryExitEdge.txt"), edge_label, fmt='%d', delimiter=' ', header=title, comments='')
 
+if simple_plotting:
+    for i in np.where(edge_label==2)[0][:]: #1 if entering, 2 if exiting
+        #plt.plot(GetSingleEdgeConc(net.cells, prob.Cv, i))
+        plt.plot(prob.Cv[GetSingleEdgeSources(net.cells, i)])
+        plt.plot(np.zeros(net.cells[i])+ edges_concentration[i])
+        #plt.ylim((0.98,1))
+    plt.show()
 
-for i in np.where(edge_label==2)[0][:]: #1 if entering, 2 if exiting
-    #plt.plot(GetSingleEdgeConc(net.cells, prob.Cv, i))
-    plt.plot(prob.Cv[GetSingleEdgeSources(net.cells, i)])
-    plt.plot(np.zeros(net.cells[i])+ edges_concentration[i])
-    #plt.ylim((0.98,1))
-plt.show()
+points_position=GetPointsAM(edges, pos_vertex, net.pos_s, net.cells)
+title="@4 # EdgePointCoordinates"
+np.savetxt(os.path.join(path_am, "EdgePointCoordinates.txt"), points_position, fmt='%f', delimiter=' ', header=title, comments='')
+
+title="@3 # NumEdgePoints"
+np.savetxt(os.path.join(path_am, "NumEdgePoints.txt"), net.cells+2, fmt='%f', delimiter=' ', header=title, comments='')
+
+vertices_diams=GetConcentrationVertices(vertex_to_edge, startVertex, net.cells, np.repeat(diameters, net.cells))
+points_thickness=GetConcentrationAM(edges, vertices_diams, np.repeat(diameters, net.cells), net.cells)
+title="@5 # Thickness"
+np.savetxt(os.path.join(path_am, "Thickness.txt"), points_thickness, fmt='%f', delimiter=' ', header=title, comments='')
+
 
 #%%
 
-from PrePostTemp import GetPointsAM, GetConcentrationAM, GetConcentrationVertices
-
-
-points_position=GetPointsAM(edges, pos_vertex, net.pos_s, net.cells)
-title="@11 # points"
-np.savetxt(os.path.join(path_am, "Points.txt"), points_position, fmt='%f', delimiter=' ', header=title, comments='')
-
 vertices_concentration=GetConcentrationVertices(vertex_to_edge, startVertex, net.cells, prob.Cv)
-title="@12 # vertices concentration"
-np.savetxt(os.path.join(path_am, "vertices_concentration.txt"), vertices_concentration, fmt='%f', delimiter=' ', header=title, comments='')
+title="@11 # VertexConcentration"
+np.savetxt(os.path.join(path_am, "VertexConcentration.txt"), vertices_concentration, fmt='%f', delimiter=' ', header=title, comments='')
 
 points_concentration=GetConcentrationAM(edges, vertices_concentration, prob.Cv, net.cells)
-title="@13 # concentration points"
-np.savetxt(os.path.join(path_am, "Points.txt"), points_concentration, fmt='%f', delimiter=' ', header=title, comments='')
+title="@12 # PointConcentration"
+np.savetxt(os.path.join(path_am, "PointConcentration.txt"), points_concentration, fmt='%f', delimiter=' ', header=title, comments='')
 
 
 #%% - To calculate different PDFs
@@ -413,13 +424,13 @@ average_phi = []
 for pos in unique_x:
     mask = np.abs(net.pos_s[:,0] - pos) <= h
     average_phi.append(np.mean(prob.Cv[mask]))
-
-# Plotting the average concentration
-plt.plot(unique_x, average_phi)
-plt.xlabel('Position')
-plt.ylabel('Average Concentration')
-plt.title('Average Concentration vs Position (within distance h)')
-#plt.show()
+if simple_plotting:
+    # Plotting the average concentration
+    plt.plot(unique_x, average_phi)
+    plt.xlabel('Position')
+    plt.ylabel('Average Concentration')
+    plt.title('Average Concentration vs Position (within distance h)')
+    plt.show()
 #%%
 
 # Assuming you have the arrays phi and x defined
@@ -433,10 +444,10 @@ average_phi = []
 for pos in unique_x:
     mask = np.abs(net.pos_s[:,0] - pos) <= h
     average_phi.append(np.sum(mask))
-
-# Plotting the average concentration
-plt.plot(unique_x, average_phi)
-plt.xlabel('Position')
-plt.ylabel('Average Concentration')
-plt.title('Average Concentration vs Position (within distance h)')
-#plt.show()
+if simple_plotting:
+    # Plotting the average concentration
+    plt.plot(unique_x, average_phi)
+    plt.xlabel('Position')
+    plt.ylabel('Average Concentration')
+    plt.title('Average Concentration vs Position (within distance h)')
+    plt.show()
