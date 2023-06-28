@@ -13,6 +13,7 @@ n=3
 shrink_factor=(cells_3D-1)/cells_3D
 Network=1
 gradient="x"
+
 M_D=0.001
 
 import os
@@ -256,57 +257,40 @@ prob.B_assembly_bool=B_assembly_bool
 prob.I_assembly_bool=I_assembly_bool
 sol_linear_system=Computation_bool
 pdb.set_trace()
+
+if not Computation_Si_V:
+    kernel_array, row_array,sources_array=GetCoarsekernels(GetProbArgs(prob), path_matrices)
+    Si_V=csc_matrix((kernel_array, (row_array, sources_array)), shape=(prob.F, prob.S))
+    sp.sparse.save_npz(os.path.join(path_matrices, 'Si_V'), Si_V)
+else:
+    Si_V=sp.sparse.load_npz(os.path.join(path_matrices, 'Si_V.npz'))
+
 if sol_linear_system:
     D_E_F=prob.AssemblyDEFFast(path_matrices + "/E_portion", path_matrices)
     A_B_C=prob.AssemblyABC(path_matrices)
-    G_H_I=prob.AssemblyGHI(path_matrices)
-    prob.Full_linear_matrix=sp.sparse.vstack((A_B_C,D_E_F,G_H_I))
-    III_ind_array=np.load(os.path.join(path_matrices, 'III_ind_array.npy'))
-    Full_ind_array=np.concatenate((prob.I_ind_array, np.zeros(len(prob.mesh_1D.pos_s)), III_ind_array))
-    #M_D=0.001
-    M_D=0.0002
-    Real_diff=1.2e5 #\mu m^2 / min
-    CMRO2=Real_diff * M_D
-    prob.Full_ind_array=Full_ind_array
-    prob.Full_ind_array[:cells_3D**2]-=M_D*mesh.h**3
+    pos_gradient=np.where(np.array("x","y","z")==gradient)[0][0]
+    Cv=(L_3D[pos_gradient]-net.pos_s[:,pos_gradient])/L_3D[pos_gradient]
+    Lin_matrix=sp.sparse.vstack((sp.sparse.hstack((prob.A_matrix, prob.B_matrix-Si_V*M_D*mesh.h**3)),
+                                 sp.sparse.hstack((prob.D_matrix, prob.q_portion + prob.Gij))))
+    
+    b=np.concatenate((prob.I_ind_array, prob.F_matrix.dot(Cv)))
     print("If all BCs are newton the sum of all coefficients divided by the length of the network should be close to 1", np.sum(prob.B_matrix.toarray())/np.sum(net.L))
     print("Deleting matrices")
     del(D_E_F)
     del(A_B_C)
-    del(G_H_I)
     print("Converting matrix")
-    prob.Full_linear_matrix=prob.Full_linear_matrix.astype('float32')
-    prob.Full_ind_array=prob.Full_ind_array.astype('float32')
+    Lin_matrix=Lin_matrix.astype('float32')
+    b=b.astype('float32')
     #sol=dir_solve(prob.Full_linear_matrix,-prob.Full_ind_array)
     print("solve problem")
-    #a=GetInitialGuess(ArtVenCap_Label, prob)
-    #initial_guess=np.concatenate((a[0], a[1], a[2]))
-    #sol=sp.sparse.linalg.bicgstab(prob.Full_linear_matrix,-prob.Full_ind_array); np.save(os.path.join(path_matrices, 'sol_bicgstab'),sol[0])
-    #sol=sp.sparse.linalg.cg(prob.Full_linear_matrix,-prob.Full_ind_array); np.save(os.path.join(path_matrices, 'sol_cg'),sol[0])
-    #sol=sp.sparse.linalg.cgs(prob.Full_linear_matrix,-prob.Full_ind_array); np.save(os.path.join(path_matrices, 'sol_cgs'),sol[0])
-    #sol=sp.sparse.linalg.gmres(prob.Full_linear_matrix,-prob.Full_ind_array); np.save(os.path.join(path_matrices, 'sol_gmres'),sol[1])
-    #sol=sp.sparse.linalg.lgmres(prob.Full_linear_matrix,-prob.Full_ind_array); np.save(os.path.join(path_matrices, 'sol_lgmres'),sol[0])
-    #sol=sp.sparse.linalg.minres(prob.Full_linear_matrix,-prob.Full_ind_array); np.save(os.path.join(path_matrices, 'sol_minres'),sol[0])
-    #sol=sp.sparse.linalg.qmr(prob.Full_linear_matrix,-prob.Full_ind_array); np.save(os.path.join(path_matrices, 'sol_qmr'),sol[0])
-    #sol=sp.sparse.linalg.gcrotmk(prob.Full_linear_matrix,-prob.Full_ind_array); np.save(os.path.join(path_matrices, 'sol_gcrotmk'),sol[1])
-    sol=dir_solve(prob.Full_linear_matrix, -prob.Full_ind_array); np.save(os.path.join(path_matrices, 'sol_dir'),sol)
-    print("Exit code", sol[1])
+ 
+    sol=dir_solve(prob.Full_linear_matrix, -b) 
+    np.save(os.path.join(path_output_data, 'sol'),sol)
 
 sol=np.load(os.path.join(path_matrices, 'sol.npy'))
-prob.q=sol[-2*prob.S:-prob.S]
-prob.s=sol[:-2*prob.S]
-prob.Cv=sol[-prob.S:]
-
-
-#%%
-if rec_bool:
-    res=500
-    path_vol_data=os.path.join(path_output_data, "vol_data")
-    aaz=VisualizationTool(prob, 2,0,1, np.array([[mesh.h/2,mesh.h/2],
-                                                 [mesh.h/2,mesh.L[1]-mesh.h/2],
-                                                 [mesh.L[0]-mesh.h/2,mesh.h/2],
-                                                 [mesh.L[0]-mesh.h/2,mesh.L[1]-mesh.h/2]]), res)
-    aaz.GetPlaneData(path_vol_data)
+prob.q=sol[-prob.S:]
+prob.s=sol[:-prob.S]
+prob.Cv=Cv
 
 
 
