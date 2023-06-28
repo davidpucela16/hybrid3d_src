@@ -63,7 +63,7 @@ def CheckLocalConservativenessFlowRate(init, end, vertex_to_edge, flow_rate):
             a=np.zeros(len(i)) #to store whether the edges are entering or exiting
             c=0
             for j in i: #Goes through each edge of the bifurcation
-                a[c]=1 if vertex==init[j] else -1  #Vessel exiting
+                a[c]=1 if vertex==init[j] else -1  #-1 if vessel entering
                 c+=1
                 total_flux+=np.average(np.abs(flow_rate[i]))
             #print("Conservative Check", np.dot(flow_rate[i], a))
@@ -259,7 +259,7 @@ def AssignFlowBC(gradient_value, direction, pos_vertices, label_vertex):
         bc_uid=np.append(bc_uid, i)
         bc_value=np.append(bc_value, value)
         
-    return bc_uid, bc_value
+    return bc_uid, bc_value*gradient_value
         
     
     

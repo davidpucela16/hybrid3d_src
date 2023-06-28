@@ -75,10 +75,12 @@ Constant_Cv=False
 already_loaded=False
 linear_consumption=True
 
-#When changing flow and consumption, change the following:
-phi_bar_bool=False
-I_assembly_bool=False
-Computation_bool=True
+# =============================================================================
+# #When changing flow and consumption, change the following:
+# phi_bar_bool=False
+# I_assembly_bool=False
+# Computation_bool=True
+# =============================================================================
 #%%%%%%%%%%%%%
 
 import pandas as pd
@@ -182,7 +184,6 @@ startVertex=edges[:,0].copy()
 endVertex=edges[:,1].copy()
 vertex_to_edge=AssembleVertexToEdge(pos_vertex, edges)
 
-
 ########################################################################
 #   THIS IS A CRUCIAL OPERATION
 ########################################################################
@@ -199,6 +200,31 @@ startVertex=edges[:,0].copy()
 endVertex=edges[:,1].copy()
 
 CheckLocalConservativenessFlowRate(startVertex,endVertex, vertex_to_edge, Flow_rate)
+
+#%%
+L=np.sum((pos_vertex[endVertex] - pos_vertex[startVertex])**2, axis=1)**0.5
+
+from assembly_1D import flow, AssignFlowBC
+from PrePostTemp import LabelVertexEdge
+
+label_vertex, label_edge=LabelVertexEdge(vertex_to_edge,startVertex)
+bc_uid, bc_value=AssignFlowBC(5, 'x', pos_vertex, label_vertex)
+
+F=flow( bc_uid, bc_value, L, diameters, startVertex, endVertex)
+F.solver()
+Pressure=dir_solve(F.A, F.P)
+uu=F.get_U()
+Flow_rate=uu*np.pi/4*diameters**2
+
+print("Modifying edges according to pressure gradient")
+for i in range(len(edges)):
+    if Pressure[endVertex[i]] - Pressure[startVertex[i]]:
+        #print("Modifying edge ", i)
+        edges[i,0]=endVertex[i]
+        edges[i,1]=startVertex[i]
+
+CheckLocalConservativenessFlowRate(startVertex,endVertex, vertex_to_edge, Flow_rate)
+
 
 #%% - Creation of the 3D and Network objects
 L_3D=np.array([300,300,300])
@@ -330,7 +356,7 @@ if simple_plotting:
     plt.show()
 
 #%%
-res=100
+res=60
 
 corners=np.array([[0,0],[0,L_3D[0]],[L_3D[0],0],[L_3D[0],L_3D[0]]])*shrink_factor + L_3D[0]*(1-shrink_factor)/2
 if simple_plotting:    
@@ -355,7 +381,7 @@ if simple_plotting:
 
 if rec_bool:
     num_processes=30
-    process=0 #This must be kept to zero for the parallel reconstruction to go right
+    process=29 #This must be kept to zero for the parallel reconstruction to go right
     perp_axis_res=res
     path_vol_data=os.path.join(path_output_data, "vol_data")
     aaz=VisualizationTool(prob, 2,0,1, np.array([[16,16],[16,289],[289,16],[289,289]]), res)
@@ -402,9 +428,8 @@ points_thickness=GetConcentrationAM(edges, vertices_diams, np.repeat(diameters, 
 title="\n@5 # Thickness"
 np.savetxt(os.path.join(path_am, "Thickness.txt"), points_thickness, fmt='%f', delimiter=' ', header=title, comments='')
 
-vertices_pressure=GetConcentrationVertices(vertex_to_edge, startVertex, cells_per_segment, Pressure)
 title="\n@6 # VertexPressure"
-np.savetxt(os.path.join(path_am, "VertexPressure.txt"), vertices_pressure, fmt='%f', delimiter=' ', header=title, comments='')
+np.savetxt(os.path.join(path_am, "VertexPressure.txt"), Pressure, fmt='%f', delimiter=' ', header=title, comments='')
 
 #%%
 

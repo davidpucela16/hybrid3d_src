@@ -1,0 +1,1 @@
+bash script_combine_simple.sh header.txt output_0.txt EdgeConnectivity.txt NumEdgePoints.txt EdgePointCoordinates.txt Thickness.txt VertexPressure.txt FlowRate.txt EdgeConcentration.txt EntryExitVertex.txt EntryExitEdge.txt VertexConcentration.txt PointConcentration.txt

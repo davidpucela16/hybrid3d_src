@@ -402,8 +402,8 @@ def LabelVertexEdge(vertex_to_edge, init):
         - 0 if normal edge
         - 1 if entering boundary edge
         - 2 if exiting boundary edge"""
-    label_vertex=np.zeros(len(vertex_to_edge))
-    label_edge=np.zeros(len(init))
+    label_vertex=np.zeros(len(vertex_to_edge), dtype=np.int64)
+    label_edge=np.zeros(len(init), dtype=np.int64)
     c=0
     for i in vertex_to_edge:
         if len(i)==1:
