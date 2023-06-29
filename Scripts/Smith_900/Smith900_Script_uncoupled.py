@@ -223,7 +223,6 @@ for i in range(len(Flow_rate)):
     cumulative_flow+=Flow_rate[i]*net.tau[i]
     
 print("cumulative flow= ", cumulative_flow)
-pdb.set_trace()
 
 #%%
 prob=hybrid_set_up(mesh, net, BC_type, BC_value,n,1, K, BCs_1D)

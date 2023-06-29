@@ -76,9 +76,11 @@ already_loaded=False
 linear_consumption=True
 
 #When changing flow and consumption, change the following:
-phi_bar_bool=False
-I_assembly_bool=False
-Computation_bool=True
+# =============================================================================
+# phi_bar_bool=False
+# I_assembly_bool=False
+# Computation_bool=True
+# =============================================================================
 #%%%%%%%%%%%%%
 
 import pandas as pd
@@ -256,7 +258,6 @@ prob.phi_bar_bool=phi_bar_bool
 prob.B_assembly_bool=B_assembly_bool
 prob.I_assembly_bool=I_assembly_bool
 sol_linear_system=Computation_bool
-pdb.set_trace()
 
 if not Computation_Si_V:
     kernel_array, row_array,sources_array=GetCoarsekernels(GetProbArgs(prob), path_matrices)
@@ -268,7 +269,7 @@ else:
 if sol_linear_system:
     D_E_F=prob.AssemblyDEFFast(path_matrices + "/E_portion", path_matrices)
     A_B_C=prob.AssemblyABC(path_matrices)
-    pos_gradient=np.where(np.array("x","y","z")==gradient)[0][0]
+    pos_gradient=np.where(np.array(["x","y","z"])==gradient)[0][0]
     Cv=(L_3D[pos_gradient]-net.pos_s[:,pos_gradient])/L_3D[pos_gradient]
     Lin_matrix=sp.sparse.vstack((sp.sparse.hstack((prob.A_matrix, prob.B_matrix-Si_V*M_D*mesh.h**3)),
                                  sp.sparse.hstack((prob.D_matrix, prob.q_portion + prob.Gij))))
