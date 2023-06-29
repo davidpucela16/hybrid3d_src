@@ -215,9 +215,9 @@ vertex_to_edge=AssembleVertexToEdge(pos_vertex, edges)
 ########################################################################
 c=0
 for i in edges:
-    gradient=Pressure[i[1]] - Pressure[i[0]]
+    grad=Pressure[i[1]] - Pressure[i[0]]
     #pdb.set_trace()
-    if gradient<0 and Flow_rate[c]<0:
+    if grad<0 and Flow_rate[c]<0:
     #if gradient>0:
         print("errror")
         edges[c,0]=endVertex[c]
@@ -269,6 +269,7 @@ else:
 if sol_linear_system:
     D_E_F=prob.AssemblyDEFFast(path_matrices + "/E_portion", path_matrices)
     A_B_C=prob.AssemblyABC(path_matrices)
+    pdb.set_trace()
     pos_gradient=np.where(np.array(["x","y","z"])==gradient)[0][0]
     Cv=(L_3D[pos_gradient]-net.pos_s[:,pos_gradient])/L_3D[pos_gradient]
     Lin_matrix=sp.sparse.vstack((sp.sparse.hstack((prob.A_matrix, prob.B_matrix-Si_V*M_D*mesh.h**3)),
