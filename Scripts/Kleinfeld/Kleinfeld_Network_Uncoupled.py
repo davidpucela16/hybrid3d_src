@@ -289,11 +289,13 @@ if sol_linear_system:
     sol=dir_solve(prob.Full_linear_matrix, -b) 
     np.save(os.path.join(path_output_data, 'sol'),sol)
 
-sol=np.load(os.path.join(path_matrices, 'sol.npy'))
+sol=np.load(os.path.join(path_output_data, 'sol.npy'))
 prob.q=sol[-prob.S:]
 prob.s=sol[:-prob.S]
 prob.Cv=Cv
 
 
 
-
+prob.AssemblyGHI(path_matrices)
+inv=sp.sparse.linalg.inv(prob.I_matrix)
+np.save(os.path.join(path_output_data, 'I_inv'),inv)

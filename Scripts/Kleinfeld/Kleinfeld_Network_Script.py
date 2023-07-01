@@ -9,7 +9,7 @@ Created on Tue May 23 18:04:46 2023
 factor_flow=1
 factor_K=10
 cells_3D=20
-n=3
+n=1
 shrink_factor=(cells_3D-1)/cells_3D
 Network=1
 gradient="x"
@@ -74,10 +74,13 @@ Constant_Cv=False
 already_loaded=False
 linear_consumption=True
 
-#When changing flow and consumption, change the following:
-phi_bar_bool=False
-I_assembly_bool=False
-Computation_bool=True
+# =============================================================================
+# #When changing flow and consumption, change the following:
+# phi_bar_bool=False
+# I_assembly_bool=False
+# Computation_bool=True
+# =============================================================================
+
 #%%%%%%%%%%%%%
 
 import pandas as pd
@@ -115,7 +118,7 @@ params = {'legend.fontsize': 'x-large',
           'lines.markersize': 15}
 pylab.rcParams.update(params)
 
-
+pdb.set_trace()
 #%%
 
 if Computation_bool: 

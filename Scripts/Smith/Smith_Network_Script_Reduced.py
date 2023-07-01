@@ -73,7 +73,6 @@ rec_bool=False
 simple_plotting=False
 Constant_Cv=False
 already_loaded=False
-linear_consumption=True
 
 print("Do you wanna recalculate the I_matrix")
 user_input = input("Enter a value: ")
@@ -81,8 +80,9 @@ user_input = input("Enter a value: ")
 
 if user_input=="yes":
     #When changing flow and consumption, change the following:
-    #phi_bar_bool=False
-    #I_assembly_bool=False
+    print("user input: ", user_input)
+    phi_bar_bool=False
+    I_assembly_bool=False
     Computation_bool=True
 #%%%%%%%%%%%%%
 
@@ -249,56 +249,94 @@ if not Computation_Si_V:
 else:
     Si_V=sp.sparse.load_npz(os.path.join(path_matrices, 'Si_V.npz'))
 
-
-
 #%%
+# =============================================================================
+# prob.AssemblyProblem(path_matrices)
+# inv_H=sp.sparse.diags(1/prob.aux_arr, 0)
+# B=prob.B_matrix-Si_V*M_D*mesh.h**3
+# new_B=-B.dot(inv_H.dot(prob.I_matrix))
+# E=prob.Gij+prob.q_portion
+# new_E=prob.F_matrix - E.dot(inv_H.dot(prob.I_matrix))
+# A=prob.A_matrix-sp.sparse.diags(np.ones(prob.F), 0)*M_D*mesh.h**3
+# Red_system_matrix=sp.sparse.vstack((sp.sparse.hstack((A, new_B)), 
+#                                     sp.sparse.hstack((prob.D_matrix, new_E))))
+# 
+# Red_system_array=np.concatenate((prob.I_ind_array - B.dot(inv_H.dot(prob.III_ind_array)), 
+#                            -E.dot(inv_H.dot(prob.III_ind_array))))
+# 
+# sol_red=dir_solve(Red_system_matrix, -Red_system_array)
+# q_red=-inv_H.dot(prob.I_matrix.dot(sol_red[-prob.S:])+prob.III_ind_array)
+# 
+# 
+# #%%
+# if Computation_bool:
+#     if not already_loaded:
+#         prob.AssemblyProblem(path_matrices)
+#         A=prob.Full_linear_matrix
+#         #M_D=0.001
+#         Real_diff=1.2e5 #\mu m^2 / min
+#         CMRO2=Real_diff * M_D
+#         b=prob.Full_ind_array.copy()
+#         orig_A=prob.A_matrix.copy()
+#         orig_B=prob.B_matrix.copy()
+#         
+#         prob.A_matrix-=sp.sparse.diags(np.ones(prob.F), 0)*M_D*mesh.h**3
+#         prob.B_matrix-=Si_V*M_D*mesh.h**3
+#         
+#         A=prob.ReAssemblyMatrices()
+#         
+#         prob.A_matrix=orig_A.copy()
+#         prob.B_matrix=orig_B.copy()
+#             
+#         print("If all BCs are newton the sum of all coefficients divided by the length of the network should be close to 1", np.sum(prob.B_matrix.toarray())/np.sum(net.L))
+#         plt.spy(prob.Full_linear_matrix, marker='d', markersize=2)
+#         already_loaded=True
+#     sol = dir_solve(A, -b)
+#     np.save(os.path.join(path_matrices, 'sol'),sol)
+# sol=np.load(os.path.join(path_matrices, 'sol.npy'))
+# prob.s=sol[:prob.F]
+# prob.Cv=sol[-prob.S:]
+# prob.q=sol[-2*prob.S:-prob.S]
+# =============================================================================
+#%%
+
+from PrePostTemp import AssembleReducedProblem
+
 if Computation_bool:
     if not already_loaded:
         prob.AssemblyProblem(path_matrices)
-        A=prob.Full_linear_matrix
-        #M_D=0.001
-        Real_diff=1.2e5 #\mu m^2 / min
-        CMRO2=Real_diff * M_D
-        b=prob.Full_ind_array.copy()
-        if not linear_consumption:
-            
-            b[:prob.F]-=M_D*mesh.h**3
-        else:
-            orig_A=prob.A_matrix.copy()
-            orig_B=prob.B_matrix.copy()
-            
-            prob.A_matrix-=sp.sparse.diags(np.ones(prob.F), 0)*M_D*mesh.h**3
-            prob.B_matrix-=Si_V*M_D*mesh.h**3
-            
-            A=prob.ReAssemblyMatrices()
-            
-            prob.A_matrix=orig_A.copy()
-            prob.B_matrix=orig_B.copy()
-            
         print("If all BCs are newton the sum of all coefficients divided by the length of the network should be close to 1", np.sum(prob.B_matrix.toarray())/np.sum(net.L))
-        plt.spy(prob.Full_linear_matrix, marker='d', markersize=2)
-        pdb.set_trace()
+        A=prob.Full_linear_matrix
+        b=prob.Full_ind_array.copy()
+        prob.A_matrix-=sp.sparse.diags(np.ones(prob.F), 0)*M_D*mesh.h**3
+        prob.B_matrix-=Si_V*M_D*mesh.h**3
+        
+        A=prob.ReAssemblyMatrices()
+            
+        
+        plt.spy(prob.Full_linear_matrix, marker='d', markersize=2); plt.show()
         already_loaded=True
-    #Linear resolution of the problem
-    if Constant_Cv:
-        #Constant Cv
-        Lin_matrix=prob.Full_linear_matrix.tolil()[:prob.F+prob.S,:prob.F+prob.S]
-        ind_array=b[:prob.F+prob.S]
-        ind_array[-prob.S:]+=prob.F_matrix.dot(np.ones(prob.S))
-        sol=dir_solve(Lin_matrix,-ind_array)
-        sol=np.concatenate((sol, np.ones(prob.S)))
-    else:
-        #sol=dir_solve(prob.Full_linear_matrix,-prob.Full_ind_array)
-        pdb.set_trace()
-        sol = dir_solve(A, -b)
-        np.save(os.path.join(path_matrices, 'sol'),sol)
+
+    #sol=dir_solve(prob.Full_linear_matrix,-prob.Full_ind_array)
+    A,b=AssembleReducedProblem(prob.A_matrix-sp.sparse.diags(np.ones(prob.F), 0)*M_D*mesh.h**3,
+                               prob.B_matrix-Si_V*M_D*mesh.h**3,
+                               prob.D_matrix,
+                               prob.Gij+prob.q_portion,
+                               prob.F_matrix,
+                               prob.aux_arr,
+                               prob.I_matrix, 
+                               prob.I_ind_array, 
+                               prob.III_ind_array)
+    plt.spy(A, marker='d', markersize=2); plt.show()
+    sol_red = dir_solve(A, -b)
+    np.save(os.path.join(path_matrices, 'sol_red'),sol_red)
 
 
-#%%
-sol=np.load(os.path.join(path_matrices, 'sol.npy'))
-prob.q=sol[prob.F:prob.F+prob.S]
+#%% - Reduced
+sol=np.load(os.path.join(path_matrices, 'sol_red.npy'))
 prob.s=sol[:prob.F]
 prob.Cv=sol[-prob.S:]
+prob.q=-sp.sparse.linalg.inv(prob.H_matrix).dot(prob.I_matrix.dot(prob.Cv)+prob.III_ind_array)
 # =============================================================================
 # prob.q=a[0]
 # prob.s=a[1]
@@ -309,10 +347,7 @@ prob.Cv=sol[-prob.S:]
 CMRO2_tot=M_D*mesh.h**3*cells_3D**3
 exchanges=np.dot(prob.q, np.repeat(net.h, net.cells))
 phi_coarse=prob.s+Si_V.dot(prob.q)
-if not linear_consumption:
-    print("Unconserved mass error: ", np.abs(exchanges-CMRO2_tot)/CMRO2_tot)
-else:
-    print("Unconserved mass error: ", np.abs(exchanges-np.sum(M_D*mesh.h**3*phi_coarse))/np.sum(M_D*mesh.h**3*phi_coarse))
+print("Unconserved mass error: ", np.abs(exchanges-np.sum(M_D*mesh.h**3*phi_coarse))/np.sum(M_D*mesh.h**3*phi_coarse))
 prob_args=GetProbArgs(prob)
 
 vmin=np.min(phi_coarse)
@@ -359,7 +394,7 @@ if simple_plotting:
 #     aax2.PlotData(path_output_data)
 # =============================================================================
 
-corners_2D=np.array([[0,0],[0,L_3D[0]],[L_3D[1],0],[L_3D[0], L_3D[1]]])*()
+corners_2D=np.array([[0,0],[0,L_3D[0]],[L_3D[1],0],[L_3D[0], L_3D[1]]])*(shrink_factor)+1/2/shrink_factor()*L_3D[0]
 if rec_bool:
     num_processes=30
     process=0 #This must be kept to zero for the parallel reconstruction to go right
