@@ -9,11 +9,12 @@ Created on Tue May 23 18:04:46 2023
 factor_flow=1
 factor_K=1
 cells_3D=20
-n=3
+n=1
 shrink_factor=(cells_3D-1)/cells_3D
 Network=1
+ratio=1/2
 gradient="x"
-M_D=0.001
+M=1e-4
 
 import os
 import sys
@@ -36,10 +37,10 @@ path_thesis = os.path.join(path_src, '../../path_thesis/' + name_script)
 
 #The folder where to save the results
 path_output = os.path.join(path_src, '../../output_figures/' + name_script)
-path_output_data=os.path.join(path_output,"F{}_n{}/".format(cells_3D, n)+gradient)
+path_output_data=os.path.join(path_output,"F{}_n{}_r{}/".format(cells_3D, n, int(ratio*10))+gradient)
 
 #Directory to save the assembled matrices and solution
-path_matrices=os.path.join(path_output,"F{}_n{}".format(cells_3D, n))
+path_matrices=os.path.join(path_output,"F{}_n{}_r{}".format(cells_3D, n, int(ratio*10)))
 #Directory to save the divided fiiles of the network
 path_am=os.path.join(path_matrices, "divided_files_{}".format(gradient))
 path_I_matrix=os.path.join(path_matrices, gradient)
@@ -156,16 +157,11 @@ df = pd.read_csv(path_am + '/output_4.txt', skiprows=1, sep="\s+", names=["lengt
 with open(path_am + '/output_4.txt', 'r') as file:
     # Read the first line
     output_four= file.readline()
-diameters_points=np.ndarray.flatten(df.values)
+diameters_points=np.ndarray.flatten(df.values)*10
 
 diameters=diameters_points[np.arange(len(edges))*2]
 #%%
-#I increase the Pe because it is way too slow
-Flow_rate=np.ndarray.flatten(df.values)*factor_flow
-
 K=np.average(diameters)/np.ndarray.flatten(diameters)*factor_K
-#The flow rate is given in nl/s
-U = 4*Flow_rate/np.pi/diameters_points**2*1e9*factor_flow #To convert to speed in micrometer/second
 
 startVertex=edges[:,0].copy()
 endVertex=edges[:,1].copy()
@@ -184,8 +180,8 @@ bc_uid, bc_value=AssignFlowBC(5, 'x', pos_vertex, label_vertex)
 F=flow( bc_uid, bc_value, L, diameters, startVertex, endVertex)
 F.solver()
 Pressure=dir_solve(F.A, F.P)
-uu=F.get_U()
-Flow_rate=uu*np.pi*diameters**2/4
+U=F.get_U()*factor_flow
+Flow_rate=U*np.pi*diameters**2/4
 ########################################################################
 #   THIS IS A CRUCIAL OPERATION
 ########################################################################
@@ -199,7 +195,11 @@ for i in range(len(edges)):
 startVertex=edges[:,0]
 endVertex=edges[:,1]
 
-CheckLocalConservativenessFlowRate(startVertex,endVertex, vertex_to_edge, uu)
+CheckLocalConservativenessFlowRate(startVertex,endVertex, vertex_to_edge, U)
+
+D=2
+U_D=U/D
+M_D=M/D
 
 #%% - Creation of the 3D and Network objects
 L_3D=np.max(pos_vertex, axis=0) - np.min(pos_vertex, axis=0)
@@ -212,7 +212,8 @@ BCs_1D=SetArtificialBCs(vertex_to_edge, 1,0, startVertex, endVertex)
 BC_type=np.array(["Neumann", "Neumann", "Neumann","Neumann","Neumann","Neumann"])
 BC_value=np.array([0,0,0,0,0,0])
 from mesh_1D import mesh_1D
-net=mesh_1D( startVertex, endVertex, vertex_to_edge ,pos_vertex, diameters, np.average(diameters)/2,np.average(uu))
+h_approx=diameters/ratio
+net=mesh_1D( startVertex, endVertex, vertex_to_edge ,pos_vertex, diameters, h_approx,1)
 net.U=np.ndarray.flatten(U)
 
 mesh=cart_mesh_3D(L_3D,cells_3D)
@@ -231,6 +232,7 @@ prob=hybrid_set_up(mesh, net, BC_type, BC_value,n,1, K, BCs_1D)
 #TRUE if no need to compute the matrices
 
 #%%
+from PrePostTemp import AssembleReducedProblem, InitialGuessSimple
 prob.phi_bar_bool=phi_bar_bool
 prob.B_assembly_bool=B_assembly_bool
 prob.I_assembly_bool=I_assembly_bool
@@ -251,18 +253,22 @@ if sol_linear_system:
     G_H_I=prob.AssemblyGHI(path_matrices)
     prob.E_matrix=prob.Gij+prob.q_portion
     #The matrices are ready 
-    inv_H=sp.sparse.diags(1/prob.aux_arr, 0)
-    new_B=prob.B_matrix.dot(inv_H.dot(prob.I_matrix))
-    new_E=prob.F_matrix - prob.E_matrix.dot(inv_H.dot(prob.I_matrix))
-    Red_system_matrix=sp.sparse.vstack((sp.sparse.hstack((prob.A_matrix, new_B)), 
-                                        sp.sparse.hstack((prob.D_matrix, new_E))))
-    
-    Red_system_array=np.vstack((prob.I_ind_array - prob.B_matrix.dot(inv_H.dot(prob.III_ind_array))), 
-                               -prob.E_matrix.dot(inv_H.dot(prob.III_ind_array)))
+    A,b=AssembleReducedProblem(prob.A_matrix-sp.sparse.diags(np.ones(prob.F), 0)*M_D*mesh.h**3,
+                               prob.B_matrix-Si_V*M_D*mesh.h**3,
+                               prob.D_matrix,
+                               prob.Gij+prob.q_portion,
+                               prob.F_matrix,
+                               prob.aux_arr,
+                               prob.I_matrix, 
+                               prob.I_ind_array, 
+                               prob.III_ind_array)
+    pdb.set_trace()    
+    print("Solving matrix!")
     pdb.set_trace()
-        
-    sol=dir_solve(Red_system_matrix, Red_system_array)
-    np.save(os.path.join(path_matrices, 'sol.npy'))
+    sol_grad=sp.sparse.linalg.bicg(A,-b,x0=InitialGuessSimple(Si_V, np.repeat(prob.K, net.cells), 0.1, np.ones(prob.S)))
+    sol=dir_solve(A,-b)
+    np.save(os.path.join(path_matrices, 'sol.npy'), sol)
+    np.save(os.path.join(path_matrices, 'sol_grad.npy'), sol_grad)
     
 sol=np.load(os.path.join(path_matrices, 'sol.npy'))
 

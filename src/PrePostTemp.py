@@ -506,3 +506,8 @@ def AssembleReducedProblem(A,B,D,E,F,aux_array,I, I_ind_array, III_ind_array):
                                -E.dot(inv_H.dot(III_ind_array))))
     
     return Red_system_matrix, Red_system_array
+
+def InitialGuessSimple(Si_V, K_arr, phi_init, C_v_init):
+    q_init=K_arr*(C_v_init-phi_init)
+    s=phi_init-Si_V.dot(q_init)
+    return(np.concatenate((s, C_v_init)))

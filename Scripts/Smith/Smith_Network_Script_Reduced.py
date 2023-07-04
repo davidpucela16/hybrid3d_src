@@ -7,14 +7,15 @@ Created on Tue May 23 18:04:46 2023
 """
 
 # Constants
-factor_flow=1
-factor_K=10
+factor_flow=10
+factor_K=1
 cells_3D=20
 n=3
 shrink_factor=(cells_3D-1)/cells_3D
 Network=1
+ratio=1
 gradient="x"
-M_D=0.001
+M=1e-4
 
 import os
 import sys
@@ -37,10 +38,10 @@ path_thesis = os.path.join(path_src, '../../path_thesis/' + name_script)
 
 #The folder where to save the results
 path_output = os.path.join(path_src, '../../output_figures/' + name_script)
-path_output_data=os.path.join(path_output,"F{}_n{}/".format(cells_3D, n)+gradient)
+path_output_data=os.path.join(path_output,"F{}_n{}_r{}/".format(cells_3D, n, int(ratio*10))+gradient)
 
 #Directory to save the assembled matrices and solution
-path_matrices=os.path.join(path_output,"F{}_n{}".format(cells_3D, n))
+path_matrices=os.path.join(path_output,"F{}_n{}_r{}/".format(cells_3D, n, int(ratio*10)))
 #Directory to save the divided fiiles of the network
 path_am=os.path.join(path_matrices, "divided_files_{}".format(gradient))
 path_I_matrix=os.path.join(path_matrices, gradient)
@@ -70,7 +71,7 @@ I_assembly_bool=os.path.exists(os.path.join(path_matrices, 'I_matrix.npz'))
 Computation_Si_V=os.path.exists(os.path.join(path_matrices, 'Si_V.npz'))
 Computation_bool= not os.path.exists(os.path.join(path_matrices, 'sol.npy'))
 rec_bool=False
-simple_plotting=False
+simple_plotting=True
 Constant_Cv=False
 already_loaded=False
 
@@ -79,9 +80,10 @@ user_input = input("Enter a value: ")
 
 
 if user_input=="yes":
-    #When changing flow and consumption, change the following:
+    #When changing flow, change the following:
     print("user input: ", user_input)
-    phi_bar_bool=False
+    #B_assembly_bool=False
+    #phi_bar_bool=False
     I_assembly_bool=False
     Computation_bool=True
 #%%%%%%%%%%%%%
@@ -181,7 +183,14 @@ Flow_rate=np.ndarray.flatten(df.values)*factor_flow
 
 K=np.average(diameters)/np.ndarray.flatten(diameters)*factor_K
 #The flow rate is given in nl/s
-U = 4*Flow_rate/np.pi/diameters**2*1e9*factor_flow #To convert to speed in micrometer/second
+#U = 4*Flow_rate/np.pi/diameters**2*1e9*factor_flow #To convert to speed in micrometer/second
+
+Flow_rate_micrometers=Flow_rate*1e6 #\mu m^3/s
+U = 4*Flow_rate_micrometers/np.pi/diameters**2 #in \mu m/s
+
+D=2
+U_D=U/D
+M_D=M/D
 
 startVertex=edges[:,0].copy()
 endVertex=edges[:,1].copy()
@@ -204,7 +213,6 @@ startVertex=edges[:,0].copy()
 endVertex=edges[:,1].copy()
 
 CheckLocalConservativenessFlowRate(startVertex,endVertex, vertex_to_edge, Flow_rate)
-
 #%% - Creation of the 3D and Network objects
 L_3D=np.array([300,300,300])
 
@@ -216,8 +224,9 @@ BCs_1D=SetArtificialBCs(vertex_to_edge, 1,0, startVertex, endVertex)
 BC_type=np.array(["Neumann", "Neumann", "Neumann","Neumann","Neumann","Neumann"])
 BC_value=np.array([0,0,0,0,0,0])
 
-net=mesh_1D( startVertex, endVertex, vertex_to_edge ,pos_vertex, diameters, np.average(diameters)/2,1)
-net.U=np.ndarray.flatten(U)
+h_approx=diameters/ratio
+net=mesh_1D( startVertex, endVertex, vertex_to_edge ,pos_vertex, diameters, h_approx,1)
+net.U=np.ndarray.flatten(U_D)
 
 mesh=cart_mesh_3D(L_3D,cells_3D)
 net.PositionalArraysFast(mesh)
@@ -302,6 +311,9 @@ else:
 
 from PrePostTemp import AssembleReducedProblem
 
+
+    
+#%%
 if Computation_bool:
     if not already_loaded:
         prob.AssemblyProblem(path_matrices)
@@ -371,7 +383,7 @@ if simple_plotting:
     plt.show()
 
 #%%
-res=100
+res=40
 
 corners=np.array([[0,0],[0,L_3D[0]],[L_3D[0],0],[L_3D[0],L_3D[0]]])*shrink_factor + L_3D[0]*(1-shrink_factor)/2
 if simple_plotting:    
@@ -394,7 +406,7 @@ if simple_plotting:
 #     aax2.PlotData(path_output_data)
 # =============================================================================
 
-corners_2D=np.array([[0,0],[0,L_3D[0]],[L_3D[1],0],[L_3D[0], L_3D[1]]])*(shrink_factor)+1/2/shrink_factor()*L_3D[0]
+corners_2D=np.array([[0,0],[0,L_3D[0]],[L_3D[1],0],[L_3D[0], L_3D[1]]])*(shrink_factor)+(1-shrink_factor)*L_3D[0]/2
 if rec_bool:
     num_processes=30
     process=0 #This must be kept to zero for the parallel reconstruction to go right
@@ -423,12 +435,12 @@ np.savetxt(os.path.join(path_am, "EntryExitEdge.txt"), edge_label.astype(int), f
 
 if simple_plotting:
     for i in np.where(edge_label==2)[0][:]: #1 if entering, 2 if exiting
+    
         #plt.plot(GetSingleEdgeConc(net.cells, prob.Cv, i))
         plt.plot(prob.Cv[GetSingleEdgeSources(net.cells, i)])
-        plt.plot(np.zeros(net.cells[i])+ edges_concentration[i])
+        #plt.plot(np.zeros(net.cells[i])+ edges_concentration[i])
         #plt.ylim((0.98,1))
     plt.show()
-
 points_position=GetPointsAM(edges, pos_vertex, net.pos_s, net.cells)
 title="\n@4 # EdgePointCoordinates"
 np.savetxt(os.path.join(path_am, "EdgePointCoordinates.txt"), points_position, fmt='%f', delimiter=' ', header=title, comments='')

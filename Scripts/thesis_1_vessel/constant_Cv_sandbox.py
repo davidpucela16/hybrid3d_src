@@ -6,6 +6,11 @@ Created on Fri Apr 28 18:52:07 2023
 @author: pdavid
 """
 
+# Constants
+cells_3D=10
+n=10
+shrink_factor=(cells_3D-1)/cells_3D
+M_D=0.00001
 
 import os
 import sys
@@ -13,23 +18,31 @@ import sys
 script = os.path.abspath(sys.argv[0])
 path_script = os.path.dirname(script)
 print(path_script)
-
 name_script = script[script.rfind('/')+1:-3]
-
 path_src = os.path.join(path_script, '../../src')
 path_potentials = os.path.join(path_script, '../../Potentials')
-# Now the creation of the relevant folders to store the output
-path_matrices = os.path.join(path_src, '../../linear_system/' + name_script)
-path_output = os.path.join(path_src, '../../output_figures/' + name_script)
-path_phi_bar = os.path.join(path_matrices, 'path_phi_bar')
-path_thesis = os.path.join(path_src, '../../path_thesis/' + name_script)
-
-os.makedirs(path_phi_bar, exist_ok=True)
-os.makedirs(path_matrices, exist_ok=True)
-os.makedirs(path_output, exist_ok=True)
-
 sys.path.append(path_src)
 sys.path.append(path_potentials)
+
+#The folder where to save the results
+path_output = os.path.join(path_src, '../../output_figures/' + name_script)
+
+#Directory to save the assembled matrices and solution
+path_matrices=os.path.join(path_output,"F{}_n{}".format(cells_3D, n))
+#Directory to save the divided fiiles of the network
+path_phi_bar=os.path.join(path_matrices, "E_portion")
+
+os.makedirs(path_output, exist_ok=True)
+os.makedirs(path_matrices, exist_ok=True)
+os.makedirs(path_phi_bar, exist_ok=True)
+os.makedirs(os.path.join(path_matrices, "E_portion"), exist_ok=True)
+
+var=True
+user_input = input("Enter a value: ")
+if user_input=="yes":
+    var=True
+    
+    
 
 import pandas as pd
 from neighbourhood import GetNeighbourhood, GetUncommon
@@ -51,7 +64,7 @@ import scipy as sp
 import matplotlib.pyplot as plt
 import numpy as np
 from PrePostTemp import Get1DCOMSOL, VisualizationTool
-
+from PrePostTemp import GetCoarsekernels, GetProbArgs
 plt.style.use('default')
 params = {'legend.fontsize': 'x-large',
           'figure.figsize': (12,12),
@@ -64,23 +77,19 @@ params = {'legend.fontsize': 'x-large',
           'lines.markersize': 15}
 pylab.rcParams.update(params)
 
-var=True #True if you dont wanna recompute the matrices
 
 #%%
 BC_type = np.array(["Neumann", "Neumann", "Neumann",
                    "Neumann", "Neumann", "Neumann"])
-BC_type = np.array(["Dirichlet", "Dirichlet", "Neumann",
-                   "Neumann", "Dirichlet", "Dirichlet"])
+#BC_type = np.array(["Dirichlet", "Dirichlet", "Neumann","Neumann", "Dirichlet", "Dirichlet"])
 BC_value = np.array([0,0,0,0,0,0])
 L_vessel = 240
-cells_3D = 21
-n = 21
 L_3D = np.array([L_vessel, 3*L_vessel, L_vessel])
 
 D = 1
-K = np.array([0.0001, 1, 0.0001])*8
+K = np.array([0.0001, 1, 0.0001])
 print(K)
-U = np.array([2, 2, 2])/L_vessel*10
+U = np.array([1,1,1])
 startVertex = np.array([0, 1, 2])
 endVertex = np.array([1, 2, 3])
 pos_vertex = np.array([[L_vessel/2, 0, L_vessel/2],
@@ -93,7 +102,7 @@ BCs_1D = np.array([[0, 1],
 
 vertex_to_edge = [[0], [0, 1], [1, 2], [2]]
 
-temp_cpv = 100
+temp_cpv = 30
 alpha = 50 # Aspect ratio
 R_vessel = L_vessel/alpha
 R_1D = np.zeros(3)+R_vessel
@@ -103,7 +112,7 @@ h = L_vessel/temp_cpv
 mesh = cart_mesh_3D(L_3D, cells_3D)
 h = L_vessel/temp_cpv
 net = mesh_1D(startVertex, endVertex, vertex_to_edge,
-              pos_vertex, diameters, h, 1)
+              pos_vertex, diameters, h+np.zeros(len(diameters)*temp_cpv), 1)
 net.U = U
 net.D = D
 net.PositionalArraysFast(mesh)
@@ -118,97 +127,39 @@ Cv=np.ones(3*temp_cpv)
 #Cv=np.concatenate((np.ones(cells_per_vessel), np.arange(cells_per_vessel)[::-1]/cells_per_vessel, np.zeros(cells_per_vessel)))
 
 if var:
-    prob.B_assembly_bool=True
+    prob.I_assembly_bool=False
+    prob.phi_bar_bool=False
+else:
+    prob.I_assembly_bool=True
     prob.phi_bar_bool=True
 
-prob.AssemblyDEFFast(path_phi_bar, path_matrices)
-prob.AssemblyABC(path_matrices)
-Lin_matrix_1D=sp.sparse.vstack((sp.sparse.hstack((prob.A_matrix, prob.B_matrix)), 
-                                 sp.sparse.hstack((prob.D_matrix, prob.q_portion+prob.Gij))))
+kernel_array, row_array,sources_array=GetCoarsekernels(GetProbArgs(prob), path_matrices)
+Si_V=csc_matrix((kernel_array, (row_array, sources_array)), shape=(prob.F, prob.S))
+sp.sparse.save_npz(os.path.join(path_matrices, 'Si_V'), Si_V)
+prob.AssemblyProblem(path_matrices)
+prob.A_matrix-=sp.sparse.diags(np.ones(prob.F), 0)*M_D*mesh.h**3
+prob.B_matrix-=Si_V*M_D*mesh.h**3
     
-b=np.concatenate((-prob.I_ind_array, np.zeros(len(net.pos_s)) - prob.F_matrix.dot(Cv)))
-sol_line=dir_solve(Lin_matrix_1D, b)
-q_line=sol_line[mesh.size_mesh:]
-s_line=sol_line[:mesh.size_mesh]
+Lin_matrix=prob.ReAssemblyMatrices()
 
-#Now we are gonna solve the same problem but using the elliptic integrals for the single layer 
-P=Classic(3*L_vessel, R_vessel)
-G_ij=P.get_single_layer_vessel(len(net.pos_s))/2/np.pi/R_vessel
-#The factor 2*np.pi*R_vessel arises because we consider q as the total flux and not the point gradient of concentration
-new_E_matrix=G_ij+prob.q_portion
-Lin_matrix_2D=sp.sparse.vstack((sp.sparse.hstack((prob.A_matrix, prob.B_matrix)), 
-                                 sp.sparse.hstack((prob.D_matrix, new_E_matrix))))
-sol_2D=dir_solve(Lin_matrix_2D, b)
-prob.q=sol_2D[mesh.size_mesh:]
-prob.s=sol_2D[:mesh.size_mesh]
-s_cyl=sol_2D[:mesh.size_mesh]
-q_cyl=sol_2D[mesh.size_mesh:]
-x_cyl=net.pos_s[:,1]
-
-H_ij=P.get_double_layer_vessel(len(net.pos_s))
-F_matrix_dip=prob.F_matrix+H_ij
-E_matrix_dip=new_E_matrix-H_ij*1/K[net.source_edge]
-prob.E_matrix=E_matrix_dip
-Lin_matrix_dip = sp.sparse.vstack((sp.sparse.hstack((prob.A_matrix, prob.B_matrix)),
-                                  sp.sparse.hstack((prob.D_matrix, E_matrix_dip))))
-b = np.concatenate(
-    (-prob.I_ind_array, np.zeros(len(net.pos_s)) - np.dot(np.array([F_matrix_dip]), Cv)[0]))
-
-sol_dip = dir_solve(Lin_matrix_2D, b)
-q_dip = sol_dip[mesh.size_mesh:]
+sol=dir_solve(Lin_matrix, -prob.Full_ind_array)
+s=sol[:prob.F]
+q=sol[prob.F:-prob.S]
+Cv=sol[-prob.S:]
+prob.s=s
+prob.q=q
+prob.Cv=Cv
 
 
-#%%
-file_path = os.path.join(path_output + '/COMSOL_data/alpha_{}_q.txt'.format(alpha))
-q_COMSOL, x_COMSOL = Get1DCOMSOL(file_path)
-pos_com=np.where((x_COMSOL<2*L_vessel) & (x_COMSOL>L_vessel))
-def GetComsol(x):
-    closest_positions = np.argmin(np.abs(x_COMSOL[:, np.newaxis] - x), axis=0)
-    return closest_positions
-
-plt.plot(x_cyl[temp_cpv:temp_cpv*2], q_cyl[temp_cpv:temp_cpv*2], label="Cylinder")
-plt.plot(x_cyl[temp_cpv:temp_cpv*2], q_line[temp_cpv:temp_cpv*2], label="Line")
-plt.plot(x_cyl[temp_cpv:temp_cpv*2], q_dip[temp_cpv:temp_cpv*2], label="dip")
-plt.plot(x_COMSOL[pos_com], q_COMSOL[pos_com], label="Reference")
-plt.ylabel("q", rotation=0)
-plt.xlabel("y")
-plt.title("Cells={}, alpha={}".format(temp_cpv, alpha))
-plt.legend()
-#plt.savefig(path_output + "/alpha12.svg")
-plt.show()
-
-#%%
-
-phi_bar_cyl=1-q_cyl/K[1]
-phi_bar_line=1-q_line/K[1]
-phi_bar_dip=1-q_dip/K[1]
-file_path=os.path.join(path_output, 'COMSOL_data/alpha_{}_phi_bar_Rv{}.txt'.format(alpha, 0))
-kk, x_C = Get1DCOMSOL(file_path)
-phi_COMSOL=kk
-x_COMSOL=x_C
-
-plt.plot(x_cyl, phi_bar_cyl, '--')
-plt.plot(x_cyl, phi_bar_line, '.-')
-plt.plot(x_cyl, phi_bar_dip, linestyle='dotted')
-plt.plot(x_COMSOL, phi_COMSOL)
-plt.ylabel("$\overline{\phi}$", rotation=0)
-plt.xlabel("y")
-plt.title("Cells={}, alpha={}".format(temp_cpv, alpha))
-plt.legend()
-plt.xlim((L_vessel, 2*L_vessel))
-plt.ylim((0.2,1.1))
-plt.show()
 #%%
 from post_processing import ReconstructionCoordinatesFast, GetProbArgs
 file_path = os.path.join(path_output + '/COMSOL_data/traverse_phi.txt'.format(alpha))
 t_phi, x_C = Get1DCOMSOL(file_path)
-res=200
+res=50
 x_cyl=np.linspace(0,L_vessel, res)*0.99+0.005*L_vessel
 crds=np.vstack((L_vessel/2+ np.zeros(res), 3*L_vessel/2*np.ones(res),  x_cyl)).T
-phi_line=ReconstructionCoordinatesFast(crds, GetProbArgs(prob), s_line, q_line)
-phi_cyl=ReconstructionCoordinatesFast(crds, GetProbArgs(prob), s_cyl, q_cyl)
+phi_line=ReconstructionCoordinatesFast(crds, GetProbArgs(prob), s, q)
 
-plt.plot(x_cyl, phi_cyl, '--')
 plt.plot(x_cyl, phi_line, '.-')
 plt.plot(x_C, t_phi)
 plt.ylabel("$\overline{\phi}$", rotation=0)
@@ -217,10 +168,8 @@ plt.title("Cells={}, alpha={}".format(temp_cpv, alpha))
 plt.show()
 
 crds=np.vstack((x_cyl, 3*L_vessel/2*np.ones(res),  L_vessel/2+ np.zeros(res))).T
-phi_line=ReconstructionCoordinatesFast(crds, GetProbArgs(prob), s_line, q_line)
-phi_cyl=ReconstructionCoordinatesFast(crds, GetProbArgs(prob), s_cyl, q_cyl)
+phi_line=ReconstructionCoordinatesFast(crds, GetProbArgs(prob), s, q)
 
-plt.plot(x_cyl, phi_cyl, '--')
 plt.plot(x_cyl, phi_line, '.-')
 plt.plot(x_C, t_phi)
 plt.ylabel("$\overline{\phi}$", rotation=0)
@@ -236,9 +185,6 @@ phi_coarse_middle=phi_coarse[0][slic[int(cells_3D/2)]]
 
 plt.plot(mesh.x, phi_coarse_middle)
 
-
-
-
 #%%
 from PrePostTemp import VisualizationTool
 res=50
@@ -250,37 +196,4 @@ shrink_factor_perp=((mesh.cells[2]-1)/mesh.cells[2])
 aa.GetPlaneData(path_output)
 aa.PlotData(path_output)
 
-
-
-
-phi_cyl=[phi_bar_cyl]
-phi_line=[phi_bar_line]
-phi_COMSOL=[phi_COMSOL]
-x_COMSOL=[x_COMSOL]
-for i in range(3):
-    crds=np.vstack((L_vessel/2+np.ones([prob.S])*R_vessel*(i+1), x_cyl, L_vessel/2+ np.zeros([prob.S]))).T
-    phi_line.append(ReconstructionCoordinatesFast(crds, GetProbArgs(prob), s_line, q_line))
-    phi_cyl.append(ReconstructionCoordinatesFast(crds, GetProbArgs(prob), s_cyl, q_cyl))
-    file_path=os.path.join(path_output, 'COMSOL_data/alpha_{}_phi_bar_Rv{}.txt'.format(alpha, i))
-    kk, x_C = Get1DCOMSOL(file_path)
-    phi_COMSOL.append(kk)
-    x_COMSOL.append(x_C)
-
-
-
-#%%
-colors = ['blue', 'red', 'green', 'purple']
-
-for i in range(4):
-    plt.plot(x_cyl, phi_cyl[i], '--', color=colors[i])
-    plt.plot(x_cyl, phi_line[i], '.-', color=colors[i])
-    plt.plot(x_COMSOL[i], phi_COMSOL[i],color=colors[i])
-    plt.ylabel("$\overline{\phi}$", rotation=0)
-    plt.xlabel("y")
-    plt.title("Cells={}, alpha={}".format(temp_cpv, alpha))
-    plt.legend()
-    plt.xlim((L_vessel, 2*L_vessel))
-    plt.ylim((0.2,1.1))
-    #plt.savefig(path_output + "/alpha12.svg")
-plt.legend()
 

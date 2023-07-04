@@ -16,21 +16,21 @@ from mesh import GetID
 from numba.typed import List
 
 class mesh_1D():
-    def __init__(self, startVertex, endVertex, vertex_to_edge ,pos_vertex, diameters,h_approx, D, *flow_vars):
+    def __init__(self, startVertex, endVertex, vertex_to_edge ,pos_vertex, diameters,h_approx_array, D, *flow_vars):
         """Generates the 1D mesh of cylinders with their centers stored within pos_s       
         
             - startVertex contains the ID of the starting vertex for each edge
            - endVertex: same thing but with the end vertex
            - vertex_to_edge contains the edges each vertex is connected to
            - pos_vertex is the position in the three dimensions of each vertex
-           - h is the discretization size of the 1D mesh
+           - h is the discretization size of the 1D mesh, from now on it must be given as an array with a different entry for each edge
            - R is the array of radii for each edge
            """
            
         self.D=D
         L=np.sum((pos_vertex[endVertex] - pos_vertex[startVertex])**2, axis=1)**0.5
         self.L=L
-        h=self.CalculateDiscretizatinSize(h_approx)
+        h=self.CalculateDiscretizatinSize(h_approx_array)
         self.tau=np.divide((pos_vertex[endVertex] - pos_vertex[startVertex]).T,L).T
         self.edges=np.arange(len(startVertex)) #Total number of edges in the network
         
@@ -58,17 +58,17 @@ class mesh_1D():
             self.U=fl.get_U()
         
         return
-    def CalculateDiscretizatinSize(self, h_approx):
-        """For the discretization size of the network, we propose a size h_approx and then 
+    def CalculateDiscretizatinSize(self, h_approx_array):
+        """For the discretization size of the network, we propose a size h_approx_array and then 
         calculate based on that value the discretization size self.h on each vessel
         
-        Since some vessels are too short to keep a discretization size close to h_approx, for
-        those specific cases h_approx is divided by three to ensure every vessel is composed of
+        Since some vessels are too short to keep a discretization size close to h_approx_array, for
+        those specific cases h_approx_array is divided by three to ensure every vessel is composed of
         at least 3 cylinders"""
         h=np.zeros(len(self.L), dtype=np.float64)
         for i in range(len(self.L)):
-            if np.around(self.L[i]/h_approx) > 3:
-                h[i]=self.L[i]/np.around(self.L[i]/h_approx)
+            if np.around(self.L[i]/h_approx_array[i]) > 3:
+                h[i]=self.L[i]/np.around(self.L[i]/h_approx_array[i])
             else:
                 h[i]=self.L[i]/3
         self.cells=self.L/h

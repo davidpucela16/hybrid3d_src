@@ -216,7 +216,7 @@ BCs_1D=SetArtificialBCs(vertex_to_edge, 1,0, startVertex, endVertex)
 BC_type=np.array(["Neumann", "Neumann", "Neumann","Neumann","Neumann","Neumann"])
 BC_value=np.array([0,0,0,0,0,0])
 
-net=mesh_1D( startVertex, endVertex, vertex_to_edge ,pos_vertex, diameters, np.average(diameters)/2,1)
+net=mesh_1D( startVertex, endVertex, vertex_to_edge ,pos_vertex, diameters, diameters/2,1)
 net.U=np.ndarray.flatten(U)
 
 mesh=cart_mesh_3D(L_3D,cells_3D)
@@ -359,7 +359,7 @@ if simple_plotting:
 #     aax2.PlotData(path_output_data)
 # =============================================================================
 
-corners_2D=np.array([[0,0],[0,L_3D[0]],[L_3D[1],0],[L_3D[0], L_3D[1]]])*()
+corners_2D=np.array([[0,0],[0,L_3D[0]],[L_3D[0],0],[L_3D[0],L_3D[0]]])*shrink_factor + L_3D[0]*(1-shrink_factor)/2
 if rec_bool:
     num_processes=30
     process=0 #This must be kept to zero for the parallel reconstruction to go right
