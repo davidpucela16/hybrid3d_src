@@ -7,14 +7,15 @@ Created on Tue May 23 18:04:46 2023
 """
 
 # Constants
-factor_flow=1
-factor_K=10
+factor_flow=10
+factor_K=1
 cells_3D=20
 n=3
 shrink_factor=(cells_3D-1)/cells_3D
 Network=1
+ratio=1
 gradient="x"
-M_D=0.001
+M=1e-4
 
 import os
 import sys
@@ -37,10 +38,10 @@ path_thesis = os.path.join(path_src, '../../path_thesis/' + name_script)
 
 #The folder where to save the results
 path_output = os.path.join(path_src, '../../output_figures/' + name_script)
-path_output_data=os.path.join(path_output,"F{}_n{}/".format(cells_3D, n)+gradient)
+path_output_data=os.path.join(path_output,"F{}_n{}_r{}/".format(cells_3D, n, int(ratio*10))+gradient)
 
 #Directory to save the assembled matrices and solution
-path_matrices=os.path.join(path_output,"F{}_n{}".format(cells_3D, n))
+path_matrices=os.path.join(path_output,"F{}_n{}_r{}/".format(cells_3D, n, int(ratio*10)))
 #Directory to save the divided fiiles of the network
 path_am=os.path.join(path_matrices, "divided_files_{}".format(gradient))
 path_I_matrix=os.path.join(path_matrices, gradient)
@@ -70,19 +71,20 @@ I_assembly_bool=os.path.exists(os.path.join(path_matrices, 'I_matrix.npz'))
 Computation_Si_V=os.path.exists(os.path.join(path_matrices, 'Si_V.npz'))
 Computation_bool= not os.path.exists(os.path.join(path_matrices, 'sol.npy'))
 rec_bool=False
-simple_plotting=False
+simple_plotting=True
 Constant_Cv=False
 already_loaded=False
-linear_consumption=True
 
 print("Do you wanna recalculate the I_matrix")
 user_input = input("Enter a value: ")
 
 
 if user_input=="yes":
-    #When changing flow and consumption, change the following:
+    #When changing flow, change the following:
+    print("user input: ", user_input)
+    #B_assembly_bool=False
     #phi_bar_bool=False
-    #I_assembly_bool=False
+    I_assembly_bool=False
     Computation_bool=True
 #%%%%%%%%%%%%%
 
@@ -181,7 +183,14 @@ Flow_rate=np.ndarray.flatten(df.values)*factor_flow
 
 K=np.average(diameters)/np.ndarray.flatten(diameters)*factor_K
 #The flow rate is given in nl/s
-U = 4*Flow_rate/np.pi/diameters**2*1e9*factor_flow #To convert to speed in micrometer/second
+#U = 4*Flow_rate/np.pi/diameters**2*1e9*factor_flow #To convert to speed in micrometer/second
+
+Flow_rate_micrometers=Flow_rate*1e6 #\mu m^3/s
+U = 4*Flow_rate_micrometers/np.pi/diameters**2 #in \mu m/s
+
+D=2
+U_D=U/D
+M_D=M/D
 
 startVertex=edges[:,0].copy()
 endVertex=edges[:,1].copy()
@@ -204,7 +213,6 @@ startVertex=edges[:,0].copy()
 endVertex=edges[:,1].copy()
 
 CheckLocalConservativenessFlowRate(startVertex,endVertex, vertex_to_edge, Flow_rate)
-
 #%% - Creation of the 3D and Network objects
 L_3D=np.array([300,300,300])
 
@@ -216,8 +224,9 @@ BCs_1D=SetArtificialBCs(vertex_to_edge, 1,0, startVertex, endVertex)
 BC_type=np.array(["Neumann", "Neumann", "Neumann","Neumann","Neumann","Neumann"])
 BC_value=np.array([0,0,0,0,0,0])
 
-net=mesh_1D( startVertex, endVertex, vertex_to_edge ,pos_vertex, diameters, diameters/2,1)
-net.U=np.ndarray.flatten(U)
+h_approx=diameters/ratio
+net=mesh_1D( startVertex, endVertex, vertex_to_edge ,pos_vertex, diameters, h_approx,1)
+net.U=np.ndarray.flatten(U_D)
 
 mesh=cart_mesh_3D(L_3D,cells_3D)
 net.PositionalArraysFast(mesh)
@@ -249,56 +258,97 @@ if not Computation_Si_V:
 else:
     Si_V=sp.sparse.load_npz(os.path.join(path_matrices, 'Si_V.npz'))
 
+#%%
+# =============================================================================
+# prob.AssemblyProblem(path_matrices)
+# inv_H=sp.sparse.diags(1/prob.aux_arr, 0)
+# B=prob.B_matrix-Si_V*M_D*mesh.h**3
+# new_B=-B.dot(inv_H.dot(prob.I_matrix))
+# E=prob.Gij+prob.q_portion
+# new_E=prob.F_matrix - E.dot(inv_H.dot(prob.I_matrix))
+# A=prob.A_matrix-sp.sparse.diags(np.ones(prob.F), 0)*M_D*mesh.h**3
+# Red_system_matrix=sp.sparse.vstack((sp.sparse.hstack((A, new_B)), 
+#                                     sp.sparse.hstack((prob.D_matrix, new_E))))
+# 
+# Red_system_array=np.concatenate((prob.I_ind_array - B.dot(inv_H.dot(prob.III_ind_array)), 
+#                            -E.dot(inv_H.dot(prob.III_ind_array))))
+# 
+# sol_red=dir_solve(Red_system_matrix, -Red_system_array)
+# q_red=-inv_H.dot(prob.I_matrix.dot(sol_red[-prob.S:])+prob.III_ind_array)
+# 
+# 
+# #%%
+# if Computation_bool:
+#     if not already_loaded:
+#         prob.AssemblyProblem(path_matrices)
+#         A=prob.Full_linear_matrix
+#         #M_D=0.001
+#         Real_diff=1.2e5 #\mu m^2 / min
+#         CMRO2=Real_diff * M_D
+#         b=prob.Full_ind_array.copy()
+#         orig_A=prob.A_matrix.copy()
+#         orig_B=prob.B_matrix.copy()
+#         
+#         prob.A_matrix-=sp.sparse.diags(np.ones(prob.F), 0)*M_D*mesh.h**3
+#         prob.B_matrix-=Si_V*M_D*mesh.h**3
+#         
+#         A=prob.ReAssemblyMatrices()
+#         
+#         prob.A_matrix=orig_A.copy()
+#         prob.B_matrix=orig_B.copy()
+#             
+#         print("If all BCs are newton the sum of all coefficients divided by the length of the network should be close to 1", np.sum(prob.B_matrix.toarray())/np.sum(net.L))
+#         plt.spy(prob.Full_linear_matrix, marker='d', markersize=2)
+#         already_loaded=True
+#     sol = dir_solve(A, -b)
+#     np.save(os.path.join(path_matrices, 'sol'),sol)
+# sol=np.load(os.path.join(path_matrices, 'sol.npy'))
+# prob.s=sol[:prob.F]
+# prob.Cv=sol[-prob.S:]
+# prob.q=sol[-2*prob.S:-prob.S]
+# =============================================================================
+#%%
+
+from PrePostTemp import AssembleReducedProblem
 
 
+    
 #%%
 if Computation_bool:
     if not already_loaded:
         prob.AssemblyProblem(path_matrices)
-        A=prob.Full_linear_matrix
-        #M_D=0.001
-        Real_diff=1.2e5 #\mu m^2 / min
-        CMRO2=Real_diff * M_D
-        b=prob.Full_ind_array.copy()
-        if not linear_consumption:
-            
-            b[:prob.F]-=M_D*mesh.h**3
-        else:
-            orig_A=prob.A_matrix.copy()
-            orig_B=prob.B_matrix.copy()
-            
-            prob.A_matrix-=sp.sparse.diags(np.ones(prob.F), 0)*M_D*mesh.h**3
-            prob.B_matrix-=Si_V*M_D*mesh.h**3
-            
-            A=prob.ReAssemblyMatrices()
-            
-            prob.A_matrix=orig_A.copy()
-            prob.B_matrix=orig_B.copy()
-            
         print("If all BCs are newton the sum of all coefficients divided by the length of the network should be close to 1", np.sum(prob.B_matrix.toarray())/np.sum(net.L))
-        plt.spy(prob.Full_linear_matrix, marker='d', markersize=2)
-        pdb.set_trace()
+        A=prob.Full_linear_matrix
+        b=prob.Full_ind_array.copy()
+        prob.A_matrix-=sp.sparse.diags(np.ones(prob.F), 0)*M_D*mesh.h**3
+        prob.B_matrix-=Si_V*M_D*mesh.h**3
+        
+        A=prob.ReAssemblyMatrices()
+            
+        
+        plt.spy(prob.Full_linear_matrix, marker='d', markersize=2); plt.show()
         already_loaded=True
-    #Linear resolution of the problem
-    if Constant_Cv:
-        #Constant Cv
-        Lin_matrix=prob.Full_linear_matrix.tolil()[:prob.F+prob.S,:prob.F+prob.S]
-        ind_array=b[:prob.F+prob.S]
-        ind_array[-prob.S:]+=prob.F_matrix.dot(np.ones(prob.S))
-        sol=dir_solve(Lin_matrix,-ind_array)
-        sol=np.concatenate((sol, np.ones(prob.S)))
-    else:
-        #sol=dir_solve(prob.Full_linear_matrix,-prob.Full_ind_array)
-        pdb.set_trace()
-        sol = dir_solve(A, -b)
-        np.save(os.path.join(path_matrices, 'sol'),sol)
+
+    #sol=dir_solve(prob.Full_linear_matrix,-prob.Full_ind_array)
+    A,b=AssembleReducedProblem(prob.A_matrix-sp.sparse.diags(np.ones(prob.F), 0)*M_D*mesh.h**3,
+                               prob.B_matrix-Si_V*M_D*mesh.h**3,
+                               prob.D_matrix,
+                               prob.Gij+prob.q_portion,
+                               prob.F_matrix,
+                               prob.aux_arr,
+                               prob.I_matrix, 
+                               prob.I_ind_array, 
+                               prob.III_ind_array)
+    plt.spy(A, marker='d', markersize=2); plt.show()
+    sol_red = dir_solve(A, -b)
+    np.save(os.path.join(path_matrices, 'sol_red'),sol_red)
 
 
-#%%
-sol=np.load(os.path.join(path_matrices, 'sol.npy'))
-prob.q=sol[prob.F:prob.F+prob.S]
+#%% - Reduced
+sol=np.load(os.path.join(path_matrices, 'sol_red.npy'))
 prob.s=sol[:prob.F]
 prob.Cv=sol[-prob.S:]
+prob.q=-sp.sparse.linalg.inv(prob.H_matrix).dot(prob.I_matrix.dot(prob.Cv)+prob.III_ind_array)
 # =============================================================================
 # prob.q=a[0]
 # prob.s=a[1]
@@ -309,10 +359,7 @@ prob.Cv=sol[-prob.S:]
 CMRO2_tot=M_D*mesh.h**3*cells_3D**3
 exchanges=np.dot(prob.q, np.repeat(net.h, net.cells))
 phi_coarse=prob.s+Si_V.dot(prob.q)
-if not linear_consumption:
-    print("Unconserved mass error: ", np.abs(exchanges-CMRO2_tot)/CMRO2_tot)
-else:
-    print("Unconserved mass error: ", np.abs(exchanges-np.sum(M_D*mesh.h**3*phi_coarse))/np.sum(M_D*mesh.h**3*phi_coarse))
+print("Unconserved mass error: ", np.abs(exchanges-np.sum(M_D*mesh.h**3*phi_coarse))/np.sum(M_D*mesh.h**3*phi_coarse))
 prob_args=GetProbArgs(prob)
 
 vmin=np.min(phi_coarse)
@@ -336,7 +383,7 @@ if simple_plotting:
     plt.show()
 
 #%%
-res=100
+res=40
 
 corners=np.array([[0,0],[0,L_3D[0]],[L_3D[0],0],[L_3D[0],L_3D[0]]])*shrink_factor + L_3D[0]*(1-shrink_factor)/2
 if simple_plotting:    
@@ -359,7 +406,7 @@ if simple_plotting:
 #     aax2.PlotData(path_output_data)
 # =============================================================================
 
-corners_2D=np.array([[0,0],[0,L_3D[0]],[L_3D[0],0],[L_3D[0],L_3D[0]]])*shrink_factor + L_3D[0]*(1-shrink_factor)/2
+corners_2D=np.array([[0,0],[0,L_3D[0]],[L_3D[1],0],[L_3D[0], L_3D[1]]])*(shrink_factor)+(1-shrink_factor)*L_3D[0]/2
 if rec_bool:
     num_processes=30
     process=0 #This must be kept to zero for the parallel reconstruction to go right
@@ -388,12 +435,12 @@ np.savetxt(os.path.join(path_am, "EntryExitEdge.txt"), edge_label.astype(int), f
 
 if simple_plotting:
     for i in np.where(edge_label==2)[0][:]: #1 if entering, 2 if exiting
+    
         #plt.plot(GetSingleEdgeConc(net.cells, prob.Cv, i))
         plt.plot(prob.Cv[GetSingleEdgeSources(net.cells, i)])
-        plt.plot(np.zeros(net.cells[i])+ edges_concentration[i])
+        #plt.plot(np.zeros(net.cells[i])+ edges_concentration[i])
         #plt.ylim((0.98,1))
     plt.show()
-
 points_position=GetPointsAM(edges, pos_vertex, net.pos_s, net.cells)
 title="\n@4 # EdgePointCoordinates"
 np.savetxt(os.path.join(path_am, "EdgePointCoordinates.txt"), points_position, fmt='%f', delimiter=' ', header=title, comments='')

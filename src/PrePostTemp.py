@@ -370,6 +370,7 @@ def GetCoarsekernels(prob_args, path):
     sources_array=np.zeros(0, dtype=np.int64)
     row_array=np.zeros(0, dtype=np.int64)
     for i in range(len(prob_args[5])):
+        if i%20==0: print("Assembling Si_V; block ", i)
         #print("FV Block: ", i)
         kernel_q,sources=SimpsonVolume(i, prob_args)
         kernel_array=np.concatenate((kernel_array, kernel_q))
@@ -494,4 +495,19 @@ def GetConcentrationVertices(vertex_to_edge, startVertex, cells_per_segment, pro
 
     
     
+def AssembleReducedProblem(A,B,D,E,F,aux_array,I, I_ind_array, III_ind_array):
+    inv_H=sp.sparse.diags(1/aux_array, 0)
+    new_B=-B.dot(inv_H.dot(I))
+    new_E=F - E.dot(inv_H.dot(I))
+    Red_system_matrix=sp.sparse.vstack((sp.sparse.hstack((A, new_B)), 
+                                        sp.sparse.hstack((D, new_E))))
+
+    Red_system_array=np.concatenate((I_ind_array - B.dot(inv_H.dot(III_ind_array)), 
+                               -E.dot(inv_H.dot(III_ind_array))))
     
+    return Red_system_matrix, Red_system_array
+
+def InitialGuessSimple(Si_V, K_arr, phi_init, C_v_init):
+    q_init=K_arr*(C_v_init-phi_init)
+    s=phi_init-Si_V.dot(q_init)
+    return(np.concatenate((s, C_v_init)))

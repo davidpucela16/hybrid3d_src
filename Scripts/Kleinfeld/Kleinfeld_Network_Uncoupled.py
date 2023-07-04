@@ -295,4 +295,6 @@ prob.Cv=Cv
 
 pdb.set_trace()
 
-
+prob.AssemblyGHI(path_matrices)
+inv=sp.sparse.linalg.inv(prob.I_matrix)
+np.save(os.path.join(path_output_data, 'I_inv'),inv)
