@@ -262,9 +262,7 @@ if sol_linear_system:
                                prob.I_matrix, 
                                prob.I_ind_array, 
                                prob.III_ind_array)
-    pdb.set_trace()    
     print("Solving matrix!")
-    pdb.set_trace()
     sol_grad=sp.sparse.linalg.bicg(A,-b,x0=InitialGuessSimple(Si_V, np.repeat(prob.K, net.cells), 0.1, np.ones(prob.S)))
     sol=dir_solve(A,-b)
     np.save(os.path.join(path_matrices, 'sol.npy'), sol)
