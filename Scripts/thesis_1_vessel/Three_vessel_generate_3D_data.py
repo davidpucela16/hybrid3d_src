@@ -11,17 +11,18 @@ import sys
 script = os.path.abspath(sys.argv[0])
 path_script = os.path.dirname(script)
 
-
+cells_3D=7
+n=int(cells_3D/4)*20
 name_script=script[script.rfind('/')+1:-3]
 print(path_script)
 path_src=os.path.join(path_script, '../../src')
 path_potentials=os.path.join(path_script, '../../Potentials')
 #Now the creation of the relevant folders to store the output
-path_matrices=os.path.join(path_src, '../../linear_system/' + name_script)
 path_output=os.path.join(path_src, '../../output_figures/' + name_script)
-path_phi_bar=os.path.join(path_matrices, 'path_phi_bar')
+path_matrices=os.path.join(path_output,"F{}_n{}".format(cells_3D, n))
+#Directory to save the divided fiiles of the network
+path_am=os.path.join(path_matrices, "am")
 
-os.makedirs(path_phi_bar, exist_ok=True)
 os.makedirs(path_matrices, exist_ok=True)
 os.makedirs(path_output, exist_ok=True)
 
@@ -66,8 +67,7 @@ BC_type=np.array(["Neumann", "Neumann", "Neumann","Neumann","Neumann","Neumann"]
 BC_type=np.array(["Dirichlet", "Dirichlet","Neumann","Neumann", "Dirichlet","Dirichlet"])
 BC_value=np.array([0,0,0,0,0,0])
 L_vessel=240
-cells_3D=7
-n=int(cells_3D/4)*20
+
 L_3D=np.array([L_vessel, L_vessel, 3*L_vessel])
 mesh=cart_mesh_3D(L_3D,cells_3D)
 

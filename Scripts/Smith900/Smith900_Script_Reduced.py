@@ -283,6 +283,7 @@ if sol_linear_system:
     np.save(os.path.join(path_matrices, 'time.npy'), np.array([arr_time]))
     
     a=time.time()
+
     sol_grad=sp.sparse.linalg.bicg(A,-b,x0=InitialGuessSimple(Si_V, np.repeat(prob.K, net.cells), 0.1, np.ones(prob.S)))
     b=time.time()
     np.save(os.path.join(path_matrices, 'sol_grad.npy'), sol_grad)

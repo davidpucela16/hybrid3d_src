@@ -265,7 +265,7 @@ def RetrievePhiBar(mat_path, phi_bar_path, S, size_mesh, uni_s_blocks):
     d=0
     c=0
     for i in uni_s_blocks:
-        print("Retrieve block: ", i)
+        if i%20==0: print("Retrieve block: ", i)
         c+=1
         print(c)
         list_of_kernels=RetrieveBlockPhiBar(phi_bar_path,i)

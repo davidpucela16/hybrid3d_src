@@ -256,7 +256,7 @@ prob=hybrid_set_up(mesh, net, BC_type, BC_value,n,1, K, BCs_1D)
 #TRUE if no need to compute the matrices
 prob.phi_bar_bool=phi_bar_bool
 prob.I_assembly_bool=False
-prob.intra_exit_BC='Dirichlet'
+prob.intra_exit_BC='zero_flux'
 prob.AssemblyGHI(path_matrices)
 
 phi_bar=np.zeros(len(net.pos_s))
@@ -268,7 +268,7 @@ A=prob.I_matrix - np.diag(np.repeat(k, net.cells))
 b=prob.III_ind_array - np.repeat(k, net.cells)*phi_bar
 
 A=prob.I_matrix 
-b=prob.III_ind_array + prob.H_matrix.dot(np.ones(prob.S)/1000)
+b=prob.III_ind_array + prob.H_matrix.dot(np.ones(prob.S))
 
 
 Cv=dir_solve(A,-b)

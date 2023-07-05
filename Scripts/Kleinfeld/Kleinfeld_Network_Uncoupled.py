@@ -9,7 +9,7 @@ Created on Tue May 23 18:04:46 2023
 factor_flow=1
 factor_K=10
 cells_3D=20
-n=3
+n=1
 shrink_factor=(cells_3D-1)/cells_3D
 Network=1
 gradient="x"
@@ -269,7 +269,6 @@ else:
 if sol_linear_system:
     D_E_F=prob.AssemblyDEFFast(path_matrices + "/E_portion", path_matrices)
     A_B_C=prob.AssemblyABC(path_matrices)
-    pdb.set_trace()
     pos_gradient=np.where(np.array(["x","y","z"])==gradient)[0][0]
     Cv=(L_3D[pos_gradient]-net.pos_s[:,pos_gradient])/L_3D[pos_gradient]
     Lin_matrix=sp.sparse.vstack((sp.sparse.hstack((prob.A_matrix, prob.B_matrix-Si_V*M_D*mesh.h**3)),
@@ -286,7 +285,7 @@ if sol_linear_system:
     #sol=dir_solve(prob.Full_linear_matrix,-prob.Full_ind_array)
     print("solve problem")
  
-    sol=dir_solve(prob.Full_linear_matrix, -b) 
+    sol=dir_solve(Lin_matrix, -b) 
     np.save(os.path.join(path_output_data, 'sol'),sol)
 
 sol=np.load(os.path.join(path_output_data, 'sol.npy'))
@@ -294,7 +293,7 @@ prob.q=sol[-prob.S:]
 prob.s=sol[:-prob.S]
 prob.Cv=Cv
 
-
+pdb.set_trace()
 
 prob.AssemblyGHI(path_matrices)
 inv=sp.sparse.linalg.inv(prob.I_matrix)
