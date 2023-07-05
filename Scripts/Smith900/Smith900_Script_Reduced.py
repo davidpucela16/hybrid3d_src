@@ -6,7 +6,7 @@ Created on Tue May 23 18:04:46 2023
 @author: pdavid
 """
 # Constants
-factor_flow=1
+factor_flow=0.01
 factor_K=1
 cells_3D=20
 n=1
@@ -74,13 +74,17 @@ simple_plotting=False
 Uncoupled=True
 already_loaded=False
 linear_consumption=True
-# =============================================================================
-# #When changing flow and consumption, change the following:
-# 
-# phi_bar_bool=False
-# I_assembly_bool=False
-# Computation_bool=False
-# =============================================================================
+
+
+print("Do you wanna recalculate the I_matrix")
+user_input = input("Enter a value: ")
+if user_input=="yes":
+    #When changing flow, change the following:
+    print("user input: ", user_input)
+    #B_assembly_bool=False
+    #phi_bar_bool=False
+    I_assembly_bool=False
+    Computation_bool=True
 #%%%%%%%%%%%%%
 
 import pandas as pd
@@ -248,6 +252,64 @@ if not Computation_Si_V:
     sp.sparse.save_npz(os.path.join(path_matrices, 'Si_V'), Si_V)
 else:
     Si_V=sp.sparse.load_npz(os.path.join(path_matrices, 'Si_V.npz'))
+    
+
+from scipy.sparse.linalg import gcrotmk as solver
+def IterativeAlgorithm(Si_V, prob, tol_ref, max_iter, *initial_guess):
+
+    A,B=AssembleReducedProblem(prob.A_matrix-sp.sparse.diags(np.ones(prob.F), 0)*M_D*mesh.h**3,
+                               prob.B_matrix-Si_V*M_D*mesh.h**3,
+                               prob.D_matrix,
+                               prob.Gij+prob.q_portion,
+                               prob.F_matrix,
+                               prob.aux_arr,
+                               prob.I_matrix, 
+                               prob.I_ind_array, 
+                               prob.III_ind_array)
+    
+    a,b,c,d=A.tolil()[:prob.F, :prob.F], A.tolil()[:prob.F, prob.F:], A.tolil()[prob.F:, :prob.F], A.tolil()[prob.F:, prob.F:]
+    a=a.tocsc()
+    b=b.tocsc()
+    c=c.tocsc()
+    d=d.tocsc()
+    I,II=B[:prob.F], B[prob.F:]
+    Cv=np.ones(prob.S)
+    #The initial guess for the exchanges is zero
+    s=np.zeros(prob.F)
+    q=np.zeros(prob.S)
+    it=1
+    err=1
+    while err>tol_ref or it>max_iter:
+        pdb.set_trace()
+        Cv_old=Cv.copy()
+        x0 = s if initial_guess else np.zeros(prob.F)
+        s=solver(a, -b.dot(Cv)-I, x0=x0)[0]
+        #s=solver(a, -b.dot(Cv)-I)
+        
+        x0 = q if initial_guess else np.zeros(prob.S)
+        q_int=solver(prob.Gij+prob.q_portion, -prob.D_matrix.dot(s)-prob.F_matrix.dot(Cv), x0=x0)[0]
+        #q_int=solver(prob.Gij+prob.q_portion, -prob.D_matrix.dot(s)-prob.F_matrix.dot(Cv))
+        
+        r=Si_V.dot(q_int)
+        phi_coarse=s+r
+        s[phi_coarse>1]=1-r[phi_coarse>1]
+        s[phi_coarse<0]=-r[phi_coarse<0]
+        
+        x0 = Cv if initial_guess else np.zeros(prob.S)
+        Cv=solver(d, -c.dot(s)-II, x0=x0)[0]
+        Cv=solver(prob.I_matrix, -prob.H_matrix.dot(q_int)-prob.III_ind_array, x0=x0)[0]
+        #Cv=solver(d, -c.dot(s)-II)
+        Cv[Cv>1]=1
+        Cv[Cv<0]=0
+        err=np.average(np.abs(Cv-Cv_old)/np.abs(Cv_old))   
+        print("average rel error: ", err)
+        
+    q=solver(prob.Gij+prob.q_portion, -prob.D_matrix.dot(s)-prob.F_matrix.dot(Cv), x0=q)[0]
+    #q=solver(prob.Gij+prob.q_portion, -prob.D_matrix.dot(s)-prob.F_matrix.dot(Cv))
+    return s, q, Cv
+
+
+
 
 
 if sol_linear_system:
@@ -257,6 +319,10 @@ if sol_linear_system:
     G_H_I=prob.AssemblyGHI(path_matrices)
     prob.E_matrix=prob.Gij+prob.q_portion
     #The matrices are ready 
+
+
+    
+    
     A,b=AssembleReducedProblem(prob.A_matrix-sp.sparse.diags(np.ones(prob.F), 0)*M_D*mesh.h**3,
                                prob.B_matrix-Si_V*M_D*mesh.h**3,
                                prob.D_matrix,
@@ -267,70 +333,26 @@ if sol_linear_system:
                                prob.I_ind_array, 
                                prob.III_ind_array)
     print("Solving matrix!")
-    
-    arr_time=[]
-    arr_tol=[]
+# =============================================================================
+#     pdb.set_trace()
+#     sol=IterativeAlgorithm(Si_V, prob, 1e-5, 100)
+#     pdb.set_trace()
+# =============================================================================
     
     print("Solving gcrotmk")
     a=time.time()
-    sol_gcrotmk=sp.sparse.linalg.gcrotmk(A,-b,x0=InitialGuessSimple(Si_V, np.repeat(prob.K, net.cells), 0.1, np.ones(prob.S)), tol=1e-3, maxiter=300, callback=callback)
+    sol_gcrotmk=sp.sparse.linalg.gcrotmk(A,-b,x0=InitialGuessSimple(Si_V, np.repeat(prob.K, net.cells), 0.1, np.ones(prob.S)), tol=1e-7, maxiter=300, callback=callback)
     bb=time.time()
     np.save(os.path.join(path_matrices, 'sol_gcrotmk.npy'), sol_gcrotmk[0])
     t=bb-a
-    arr_time.append(t)
-    arr_tol.append(sol_gcrotmk[1])
-    np.save(os.path.join(path_matrices, 'time.npy'), np.array([arr_time]))
-    np.savetxt(os.path.join(path_matrices, 'tol.txt'), np.array(arr_tol[1]), fmt='%f')
-    
-    print("Solving lgmres")
-    a=time.time()
-    sol_lgmres=sp.sparse.linalg.lgmres(A,-b,x0=InitialGuessSimple(Si_V, np.repeat(prob.K, net.cells), 0.1, np.ones(prob.S)), tol=1e-3, maxiter=300, callback=callback)
-    bb=time.time()
-    np.save(os.path.join(path_matrices, 'sol_lgmres.npy'), sol_lgmres[0])
-    t=bb-a
-    arr_time.append(t)
-    arr_tol.append(sol_lgmres[1])
-    np.save(os.path.join(path_matrices, 'time.npy'), np.array([arr_time]))
-    np.savetxt(os.path.join(path_matrices, 'tol.txt'), np.array(arr_tol[1]), fmt='%f')
-    
-    print("Solving grad")
-    a=time.time()
-    sol_grad=sp.sparse.linalg.bicg(A,-b,x0=InitialGuessSimple(Si_V, np.repeat(prob.K, net.cells), 0.1, np.ones(prob.S)), tol=1e-3, maxiter=300, callback=callback)
-    bb=time.time()
-    np.save(os.path.join(path_matrices, 'sol_grad.npy'), sol_grad[0])
-    t=bb-a
-    arr_time.append(t)
-    arr_tol.append(sol_grad[1])
-    np.save(os.path.join(path_matrices, 'time.npy'), np.array([arr_time]))
-    np.savetxt(os.path.join(path_matrices, 'tol.txt'), np.array(arr_tol[1]), fmt='%f')    
-    
-    print("Solving gradstab")
-    a=time.time()
-    sol_gradstab=sp.sparse.linalg.bicgstab(A,-b,x0=InitialGuessSimple(Si_V, np.repeat(prob.K, net.cells), 0.1, np.ones(prob.S)), tol=1e-3, maxiter=300, callback=callback)
-    bb=time.time()
-    np.save(os.path.join(path_matrices, 'sol_gradstab.npy'), sol_gradstab[0])
-    t=bb-a
-    arr_time.append(t)
-    arr_tol.append(sol_gradstab[1])
-    np.save(os.path.join(path_matrices, 'time.npy'), np.array([arr_time]))
-    np.savetxt(os.path.join(path_matrices, 'tol.txt'), np.array(arr_tol[1]), fmt='%f')
-    
-    print("Solving gmres")
-    a=time.time()
-    sol_gmres=sp.sparse.linalg.gmres(A,-b,x0=InitialGuessSimple(Si_V, np.repeat(prob.K, net.cells), 0.1, np.ones(prob.S)), tol=1e-3, maxiter=300, callback=callback)
-    bb=time.time()
-    np.save(os.path.join(path_matrices, 'sol_gmres.npy'), sol_gmres[0])
-    t=bb-a
-    arr_time.append(t)
-    arr_tol.append(sol_gmres[1])
-    np.save(os.path.join(path_matrices, 'time.npy'), np.array([arr_time]))
-    np.savetxt(os.path.join(path_matrices, 'tol.txt'), np.array(arr_tol[1]), fmt='%f')
-
     
     
     
 sol=np.load(os.path.join(path_matrices, 'sol.npy'))
 
+
+prob.s=sol[:prob.F]
+prob.Cv=sol[-prob.S:]
 
 #%% - Data for Avizo
 from PrePostTemp import GetEdgesConcentration,GetSingleEdgeSources, GetEdgesConcentration, LabelVertexEdge
