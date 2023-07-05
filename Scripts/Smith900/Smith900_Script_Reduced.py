@@ -269,53 +269,62 @@ if sol_linear_system:
     print("Solving matrix!")
     
     arr_time=[]
+    arr_tol=[]
     
     print("Solving gcrotmk")
     a=time.time()
-    sol_gcrotmk=sp.sparse.linalg.gcrotmk(A,-b,x0=InitialGuessSimple(Si_V, np.repeat(prob.K, net.cells), 0.1, np.ones(prob.S)), tol=1e-3, maxiter=1000, callback=callback)
+    sol_gcrotmk=sp.sparse.linalg.gcrotmk(A,-b,x0=InitialGuessSimple(Si_V, np.repeat(prob.K, net.cells), 0.1, np.ones(prob.S)), tol=1e-3, maxiter=300, callback=callback)
     bb=time.time()
     np.save(os.path.join(path_matrices, 'sol_gcrotmk.npy'), sol_gcrotmk[0])
     t=bb-a
     arr_time.append(t)
+    arr_tol.append(sol_gcrotmk[1])
+    np.save(os.path.join(path_matrices, 'time.npy'), np.array([arr_time]))
+    np.savetxt(os.path.join(path_matrices, 'tol.txt'), np.array(arr_tol[1]), fmt='%f')
     
     print("Solving lgmres")
     a=time.time()
-    sol_lgmres=sp.sparse.linalg.lgmres(A,-b,x0=InitialGuessSimple(Si_V, np.repeat(prob.K, net.cells), 0.1, np.ones(prob.S)), tol=1e-3, maxiter=1000, callback=callback)
+    sol_lgmres=sp.sparse.linalg.lgmres(A,-b,x0=InitialGuessSimple(Si_V, np.repeat(prob.K, net.cells), 0.1, np.ones(prob.S)), tol=1e-3, maxiter=300, callback=callback)
     bb=time.time()
     np.save(os.path.join(path_matrices, 'sol_lgmres.npy'), sol_lgmres[0])
     t=bb-a
     arr_time.append(t)
-    
+    arr_tol.append(sol_lgmres[1])
+    np.save(os.path.join(path_matrices, 'time.npy'), np.array([arr_time]))
+    np.savetxt(os.path.join(path_matrices, 'tol.txt'), np.array(arr_tol[1]), fmt='%f')
     
     print("Solving grad")
     a=time.time()
-    sol_grad=sp.sparse.linalg.bicg(A,-b,x0=InitialGuessSimple(Si_V, np.repeat(prob.K, net.cells), 0.1, np.ones(prob.S)), tol=1e-3, maxiter=1000, callback=callback)
+    sol_grad=sp.sparse.linalg.bicg(A,-b,x0=InitialGuessSimple(Si_V, np.repeat(prob.K, net.cells), 0.1, np.ones(prob.S)), tol=1e-3, maxiter=300, callback=callback)
     bb=time.time()
     np.save(os.path.join(path_matrices, 'sol_grad.npy'), sol_grad[0])
     t=bb-a
     arr_time.append(t)
+    arr_tol.append(sol_grad[1])
+    np.save(os.path.join(path_matrices, 'time.npy'), np.array([arr_time]))
+    np.savetxt(os.path.join(path_matrices, 'tol.txt'), np.array(arr_tol[1]), fmt='%f')    
     
     print("Solving gradstab")
     a=time.time()
-    sol_gradstab=sp.sparse.linalg.bicgstab(A,-b,x0=InitialGuessSimple(Si_V, np.repeat(prob.K, net.cells), 0.1, np.ones(prob.S)), tol=1e-3, maxiter=1000, callback=callback)
+    sol_gradstab=sp.sparse.linalg.bicgstab(A,-b,x0=InitialGuessSimple(Si_V, np.repeat(prob.K, net.cells), 0.1, np.ones(prob.S)), tol=1e-3, maxiter=300, callback=callback)
     bb=time.time()
     np.save(os.path.join(path_matrices, 'sol_gradstab.npy'), sol_gradstab[0])
     t=bb-a
     arr_time.append(t)
+    arr_tol.append(sol_gradstab[1])
+    np.save(os.path.join(path_matrices, 'time.npy'), np.array([arr_time]))
+    np.savetxt(os.path.join(path_matrices, 'tol.txt'), np.array(arr_tol[1]), fmt='%f')
     
     print("Solving gmres")
     a=time.time()
-    sol_gmres=sp.sparse.linalg.gmres(A,-b,x0=InitialGuessSimple(Si_V, np.repeat(prob.K, net.cells), 0.1, np.ones(prob.S)), tol=1e-3, maxiter=1000, callback=callback)
+    sol_gmres=sp.sparse.linalg.gmres(A,-b,x0=InitialGuessSimple(Si_V, np.repeat(prob.K, net.cells), 0.1, np.ones(prob.S)), tol=1e-3, maxiter=300, callback=callback)
     bb=time.time()
     np.save(os.path.join(path_matrices, 'sol_gmres.npy'), sol_gmres[0])
     t=bb-a
     arr_time.append(t)
-    
-
-    
-    
+    arr_tol.append(sol_gmres[1])
     np.save(os.path.join(path_matrices, 'time.npy'), np.array([arr_time]))
-    
+    np.savetxt(os.path.join(path_matrices, 'tol.txt'), np.array(arr_tol[1]), fmt='%f')
 
     
     
