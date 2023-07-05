@@ -309,7 +309,7 @@ else:
 # =============================================================================
 #%%
 
-from PrePostTemp import AssembleReducedProblem
+from PrePostTemp import AssembleReducedProblem, InitialGuessSimple
 
 
     
@@ -340,8 +340,55 @@ if Computation_bool:
                                prob.I_ind_array, 
                                prob.III_ind_array)
     plt.spy(A, marker='d', markersize=2); plt.show()
-    sol_red = dir_solve(A, -b)
-    np.save(os.path.join(path_matrices, 'sol_red'),sol_red)
+    
+    arr_time=[]
+    print("Solving grad")
+    a=time.time()
+    sol_grad=sp.sparse.linalg.bicg(A,-b,x0=InitialGuessSimple(Si_V, np.repeat(prob.K, net.cells), 0.1, np.ones(prob.S)))
+    bb=time.time()
+    np.save(os.path.join(path_matrices, 'sol_grad.npy'), sol_grad[0])
+    t=bb-a
+    arr_time.append(t)
+    
+    print("Solving gradstab")
+    a=time.time()
+    sol_gradstab=sp.sparse.linalg.bicg(A,-b,x0=InitialGuessSimple(Si_V, np.repeat(prob.K, net.cells), 0.1, np.ones(prob.S)))
+    bb=time.time()
+    np.save(os.path.join(path_matrices, 'sol_gradstab.npy'), sol_gradstab[0])
+    t=bb-a
+    arr_time.append(t)
+    
+    print("Solving gmres")
+    a=time.time()
+    sol_gmres=sp.sparse.linalg.gmres(A,-b,x0=InitialGuessSimple(Si_V, np.repeat(prob.K, net.cells), 0.1, np.ones(prob.S)))
+    bb=time.time()
+    np.save(os.path.join(path_matrices, 'sol_gmres.npy'), sol_gmres[0])
+    t=bb-a
+    arr_time.append(t)
+    
+    print("Solving lgmres")
+    a=time.time()
+    sol_lgmres=sp.sparse.linalg.lgmres(A,-b,x0=InitialGuessSimple(Si_V, np.repeat(prob.K, net.cells), 0.1, np.ones(prob.S)))
+    bb=time.time()
+    np.save(os.path.join(path_matrices, 'sol_lgmres.npy'), sol_lgmres[0])
+    t=bb-a
+    arr_time.append(t)
+    
+    print("Solving gcrotmk")
+    a=time.time()
+    sol_gcrotmk=sp.sparse.linalg.gcrotmk(A,-b,x0=InitialGuessSimple(Si_V, np.repeat(prob.K, net.cells), 0.1, np.ones(prob.S)))
+    bb=time.time()
+    np.save(os.path.join(path_matrices, 'sol_gcrotmk.npy'), sol_gcrotmk[0])
+    t=bb-a
+    arr_time.append(t)
+    
+    
+    np.save(os.path.join(path_matrices, 'time.npy'), np.array([arr_time]))
+    
+# =============================================================================
+#     sol_red = dir_solve(A, -b)
+#     np.save(os.path.join(path_matrices, 'sol_red'),sol_red)
+# =============================================================================
 
 
 #%% - Reduced

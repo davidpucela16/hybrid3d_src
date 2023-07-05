@@ -225,7 +225,6 @@ for i in range(len(Flow_rate)):
     
 print("cumulative flow= ", cumulative_flow)
 
-
 #%%
 prob=hybrid_set_up(mesh, net, BC_type, BC_value,n,1, K, BCs_1D)
 #prob.intra_exit_BC="Dir"
@@ -233,6 +232,7 @@ prob=hybrid_set_up(mesh, net, BC_type, BC_value,n,1, K, BCs_1D)
 
 #%%
 from PrePostTemp import AssembleReducedProblem, InitialGuessSimple
+import time
 prob.phi_bar_bool=phi_bar_bool
 prob.B_assembly_bool=B_assembly_bool
 prob.I_assembly_bool=I_assembly_bool
@@ -262,13 +262,53 @@ if sol_linear_system:
                                prob.I_matrix, 
                                prob.I_ind_array, 
                                prob.III_ind_array)
-    pdb.set_trace()    
     print("Solving matrix!")
-    pdb.set_trace()
+    
+    arr_time=[]
+    
+    a=time.time()
+    sol_lgmres=sp.sparse.linalg.lgmres(A,-b,x0=InitialGuessSimple(Si_V, np.repeat(prob.K, net.cells), 0.1, np.ones(prob.S)))
+    b=time.time()
+    np.save(os.path.join(path_matrices, 'sol_lgmres.npy'), sol_lgmres)
+    t=b-a
+    arr_time.append(t)
+    np.save(os.path.join(path_matrices, 'time.npy'), np.array([arr_time]))
+    
+    a=time.time()
+    sol_gcrotmk=sp.sparse.linalg.gcrotmk(A,-b,x0=InitialGuessSimple(Si_V, np.repeat(prob.K, net.cells), 0.1, np.ones(prob.S)))
+    b=time.time()
+    np.save(os.path.join(path_matrices, 'sol_gcrotmk.npy'), sol_gcrotmk)
+    t=b-a
+    arr_time.append(t)
+    np.save(os.path.join(path_matrices, 'time.npy'), np.array([arr_time]))
+    
+    a=time.time()
     sol_grad=sp.sparse.linalg.bicg(A,-b,x0=InitialGuessSimple(Si_V, np.repeat(prob.K, net.cells), 0.1, np.ones(prob.S)))
-    sol=dir_solve(A,-b)
-    np.save(os.path.join(path_matrices, 'sol.npy'), sol)
+    b=time.time()
     np.save(os.path.join(path_matrices, 'sol_grad.npy'), sol_grad)
+    t=b-a
+    arr_time.append(t)
+    np.save(os.path.join(path_matrices, 'time.npy'), np.array([arr_time]))
+    
+    a=time.time()
+    sol_gradstab=sp.sparse.linalg.bicg(A,-b,x0=InitialGuessSimple(Si_V, np.repeat(prob.K, net.cells), 0.1, np.ones(prob.S)))
+    b=time.time()
+    np.save(os.path.join(path_matrices, 'sol_gradstab.npy'), sol_gradstab)
+    t=b-a
+    arr_time.append(t)
+    np.save(os.path.join(path_matrices, 'time.npy'), np.array([arr_time]))
+    
+    a=time.time()
+    sol_gmres=sp.sparse.linalg.gmres(A,-b,x0=InitialGuessSimple(Si_V, np.repeat(prob.K, net.cells), 0.1, np.ones(prob.S)))
+    b=time.time()
+    np.save(os.path.join(path_matrices, 'sol_gmres.npy'), sol_gmres)
+    t=b-a
+    arr_time.append(t)
+    np.save(os.path.join(path_matrices, 'time.npy'), np.array([arr_time]))
+    
+
+    
+    
     
 sol=np.load(os.path.join(path_matrices, 'sol.npy'))
 
