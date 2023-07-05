@@ -352,7 +352,7 @@ if Computation_bool:
     
     print("Solving gradstab")
     a=time.time()
-    sol_gradstab=sp.sparse.linalg.bicg(A,-b,x0=InitialGuessSimple(Si_V, np.repeat(prob.K, net.cells), 0.1, np.ones(prob.S)))
+    sol_gradstab=sp.sparse.linalg.bicgstab(A,-b,x0=InitialGuessSimple(Si_V, np.repeat(prob.K, net.cells), 0.1, np.ones(prob.S)))
     bb=time.time()
     np.save(os.path.join(path_matrices, 'sol_gradstab.npy'), sol_gradstab[0])
     t=bb-a
