@@ -109,8 +109,8 @@ class cart_mesh_3D():
         """We only allow one h for all directions (cubic cells). Therefore cells_x
         is an integer"""
         h=L[0]/cells_x
-        cells_y, cells_z=int(np.ceil(L[1]/h)), int(np.ceil(L[2]/h))
-        
+        #cells_y, cells_z=int(np.ceil(L[1]/h)), int(np.ceil(L[2]/h))
+        cells_y, cells_z=int(np.around(L[1]/h)), int(np.around(L[2]/h))
         self.cells_x, self.cells_y, self.cells_z=cells_x, cells_y, cells_z
         
         L[1], L[2]=cells_y*h, cells_z*h

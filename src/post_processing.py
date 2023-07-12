@@ -69,12 +69,15 @@ def ReconstructionCoordinatesFast(crds, prob_args, s, q):
     phi=np.zeros(len(crds), dtype=np.float64)
     e=0
     (n, h_3D, cells_x,  cells_y, cells_z, pos_cells,s_blocks,source_edge, tau, pos_s,h_1D, R, D)=prob_args
+    #print("only rapid term in ReconstructionCoord...")
     for i in crds:
         a,b,c,d=InterpolateFast(i, n, cells_x, cells_y,
                               cells_z, h_3D,GetBoundaryStatus(i,h_3D, cells_x, cells_y, cells_z), 
                               pos_cells,s_blocks, source_edge,
                               tau, pos_s, h_1D, R, D)
         phi[e]=a.dot(s[b]) + c.dot(q[d]) 
+        #phi[e]=c.dot(q[d])
+        #phi[e]=a.dot(s[b])
         e+=1
     return phi
 

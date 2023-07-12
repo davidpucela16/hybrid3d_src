@@ -150,7 +150,7 @@ def AssemblyVertices(U, D, h, cells, sparse_arrs, vertex_to_edge, R, init, BCs, 
                     current_DoF=np.sum(cells[:ed])+cells[ed]-1 #End vertex 
                     kk=-1
                     sparse_arrs=AppendSparse(sparse_arrs, np.array([-U[ed]-D/h[ed],U[ed]+D/h[ed]]), np.array([current_DoF,current_DoF]), np.array([current_DoF+kk,current_DoF]))
-                    #print("no flux BC on intravascular")
+                    print("no flux BC on intravascular")
                 else:
                     print("Dirichlet BC on the intravascular system")
                     current_DoF=np.sum(cells[:ed])+cells[ed]-1 #End vertex 
@@ -160,7 +160,7 @@ def AssemblyVertices(U, D, h, cells, sparse_arrs, vertex_to_edge, R, init, BCs, 
                     ind_array[current_DoF]=BCs[np.where(BCs[:,0]==vertex)[0][0],1]*value_Dirichlet #assigns the value of the BC multiplied by the factor 
                    
             else: 
-                #print("Initial vertex!!")
+                print("Initial vertex!!, Dirichlet")
                 current_DoF=np.sum(cells[:ed]) #initial vertex
                 kk=1
 # =============================================================================
@@ -246,6 +246,8 @@ def AssemblyVertices(U, D, h, cells, sparse_arrs, vertex_to_edge, R, init, BCs, 
 
 
 def AssignFlowBC(gradient_value, direction, pos_vertices, label_vertex):
+    """Assigns the value of pressure according to the gradient given. It does 
+    not really matter if the vertex is an entering edge or an exiting one"""
     pos=np.where(np.array(['x', 'y', 'z'])==direction)[0][0]
     bc_uid=np.zeros(0, dtype=np.int64)
     bc_value=np.zeros(0, dtype=np.float64)
@@ -255,7 +257,8 @@ def AssignFlowBC(gradient_value, direction, pos_vertices, label_vertex):
     
     for i in np.where(label_vertex)[0]:
         current_vertex_position=pos_vertices[i,pos]
-        value=start+(current_vertex_position-start)/L
+        #value=start+(current_vertex_position-start)/L
+        value=(current_vertex_position-start)/L
         bc_uid=np.append(bc_uid, i)
         bc_value=np.append(bc_value, value)
         

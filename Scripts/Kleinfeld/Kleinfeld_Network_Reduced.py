@@ -12,8 +12,9 @@ cells_3D=20
 n=1
 shrink_factor=(cells_3D-1)/cells_3D
 Network=1
-gradient="x"
+ratio=1
 M_D=0.001
+D=2e4
 
 import os
 import sys
@@ -29,20 +30,20 @@ sys.path.append(path_potentials)
 
 #Network
 path_network=os.path.join(path_src, "../../networks/Network_Flo/All_files/")
-filename=os.path.join(path_network,"Network1_Figure_Data.txt".format(Network, gradient))
+filename=os.path.join(path_network,"Network1_Figure_Data.txt")
 
 #Not used for now, but it will come in handy
 path_thesis = os.path.join(path_src, '../../path_thesis/' + name_script)
 
 #The folder where to save the results
 path_output = os.path.join(path_src, '../../output_figures/' + name_script)
-path_output_data=os.path.join(path_output,"F{}_n{}/".format(cells_3D, n)+gradient)
+path_output_data=os.path.join(path_output,"F{}_n{}/".format(cells_3D, n))
 
 #Directory to save the assembled matrices and solution
 path_matrices=os.path.join(path_output,"F{}_n{}".format(cells_3D, n))
 #Directory to save the divided fiiles of the network
-path_am=os.path.join(path_matrices, "divided_files_{}".format(gradient))
-path_I_matrix=os.path.join(path_matrices, gradient)
+path_am=os.path.join(path_matrices, "divided_files")
+path_I_matrix=os.path.join(path_matrices)
 #path_phi_bar = os.path.join(path_matrices, 'path_phi_bar')
 
 os.makedirs(path_output, exist_ok=True)
@@ -199,8 +200,8 @@ pos_vertex-=np.min(pos_vertex, axis=0)
 
 
 K=np.average(diameters)/np.ndarray.flatten(diameters)
-#The flow rate is given in nl/s
-U = 4*Flow_rate/np.pi/diameters**2*1e9 #To convert to speed in micrometer/second
+#The flow rate is given in m3/s
+U = 4*Flow_rate/np.pi/diameters**2*1e18 #To convert to speed in micrometer/second
 
 startVertex=edges[:,0].copy()
 endVertex=edges[:,1].copy()
@@ -235,9 +236,9 @@ BCs_1D=SetArtificialBCs(vertex_to_edge, 1,0, startVertex, endVertex)
 BC_type=np.array(["Neumann", "Neumann", "Neumann","Neumann","Neumann","Neumann"])
 BC_value=np.array([0,0,0,0,0,0])
 
-h_approx=np.average(diameters)*3
+h_approx=diameters*ratio
 net=mesh_1D( startVertex, endVertex, vertex_to_edge ,pos_vertex, diameters, h_approx ,np.average(U))
-net.U=np.ndarray.flatten(U)
+net.U=np.ndarray.flatten(np.abs(U)/D)
 
 mesh=cart_mesh_3D(L_3D,cells_3D)
 net.PositionalArraysFast(mesh)
@@ -250,7 +251,7 @@ print("cumulative flow= ", cumulative_flow)
 
 prob=hybrid_set_up(mesh, net, BC_type, BC_value,n,1, K, BCs_1D)
 #TRUE if no need to compute the matrices
-
+pdb.set_trace()
 prob.phi_bar_bool=phi_bar_bool
 prob.B_assembly_bool=B_assembly_bool
 prob.I_assembly_bool=I_assembly_bool
@@ -264,7 +265,7 @@ else:
 
 from PrePostTemp import AssembleReducedProblem
 from PrePostTemp import AssembleReducedProblem
-
+from scipy.sparse.linalg import gcrotmk as solver
 if Computation_bool:
     if not already_loaded:
         prob.AssemblyProblem(path_matrices)
@@ -291,15 +292,59 @@ if Computation_bool:
                                prob.I_ind_array, 
                                prob.III_ind_array)
     plt.spy(A, marker='d', markersize=2); plt.show()
-    sol_red = dir_solve(A, -b)
+    sol_red, inf = solver(A, -b)
     np.save(os.path.join(path_matrices, 'sol_red'),sol_red)
 
-
-#%% - Reduced
+#%%
 sol=np.load(os.path.join(path_matrices, 'sol_red.npy'))
 prob.s=sol[:prob.F]
 prob.Cv=sol[-prob.S:]
 prob.q=-sp.sparse.linalg.inv(prob.H_matrix).dot(prob.I_matrix.dot(prob.Cv)+prob.III_ind_array)
+# =============================================================================
+# prob.q=a[0]
+# prob.s=a[1]
+# prob.Cv=a[2]
+# =============================================================================
+
+#Test Conservativeness!!!!
+CMRO2_tot=M_D*mesh.h**3*cells_3D**3
+exchanges=np.dot(prob.q, np.repeat(net.h, net.cells))
+phi_coarse=prob.s+Si_V.dot(prob.q)
+print("Unconserved mass error: ", np.abs(exchanges/D-np.sum(M_D*mesh.h**3*phi_coarse))/np.sum(M_D*mesh.h**3*phi_coarse))
+prob_args=GetProbArgs(prob)
+
+vmin=np.min(phi_coarse)
+vmax=np.max(phi_coarse)
+
+if simple_plotting:
+    fig, axs = plt.subplots(2, 2, figsize=(30,16))
+    im1 = axs[0, 0].imshow(phi_coarse[mesh.GetXSlice(L_3D[0]/5)].reshape(cells_3D, cells_3D), cmap='jet', vmin=vmin, vmax=vmax)
+    im2 = axs[0, 1].imshow(phi_coarse[mesh.GetXSlice(L_3D[0]/5*2)].reshape(cells_3D, cells_3D), cmap='jet', vmin=vmin, vmax=vmax)
+    im3 = axs[1, 0].imshow(phi_coarse[mesh.GetXSlice(L_3D[0]/5*3)].reshape(cells_3D, cells_3D), cmap='jet', vmin=vmin, vmax=vmax)
+    im4 = axs[1, 1].imshow(phi_coarse[mesh.GetXSlice(L_3D[0]/5*4)].reshape(cells_3D, cells_3D), cmap='jet', vmin=vmin, vmax=vmax)
+    # Adjust spacing between subplots
+    fig.tight_layout()
+    
+    # Move the colorbar to the right of the subplots
+    cbar = fig.colorbar(im1, ax=axs, orientation='vertical', shrink=0.8)
+    cbar_ax = cbar.ax
+    cbar_ax.set_position([0.83, 0.15, 0.03, 0.7])  # Adjust the position as needed
+    
+    # Show the plot
+    plt.show()
+
+#%%
+res=120
+
+corners=np.array([[0,0],[0,L_3D[0]],[L_3D[0],0],[L_3D[0],L_3D[0]]])*shrink_factor + L_3D[0]*(1-shrink_factor)/2
+if simple_plotting:    
+    
+    aax=VisualizationTool(prob, 0,1,2, corners, res)
+    aax.GetPlaneData(path_output_data)
+    aax.PlotData(path_output_data)
+    aay=VisualizationTool(prob, 1,0,2, corners, res)
+    aay.GetPlaneData(path_output_data)
+    aay.PlotData(path_output_data)
 
 #%%
 if rec_bool:

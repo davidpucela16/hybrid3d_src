@@ -55,16 +55,19 @@ def SetArtificialBCs(vertex_to_edge, entry_concentration, exit_concentration, in
     Remember to have preprocessed the init and end arrays for the velocity to always be positive"""
     BCs_1D=np.zeros(2, dtype=np.int64)
     c=0
+    label_vertex=np.zeros([len(vertex_to_edge)], dtype=np.int32)
     for i in vertex_to_edge: #Loop over all the vertices
     #i contains the edges the vertex c is in contact with
         if len(i)==1:
             edge=i[0]
             if np.in1d(c, init):
                 BCs_1D=np.vstack((BCs_1D, np.array([c, entry_concentration])))
+                label_vertex[c]=1
             else:
                 BCs_1D=np.vstack((BCs_1D, np.array([c, exit_concentration])))
+                label_vertex[c]=2
         c+=1
-    return(BCs_1D)
+    return(BCs_1D, label_vertex)
 
 def ClassifyVertices(vertex_to_edge, init):
     """Classifies each vertex as entering, exiting or bifurcation
